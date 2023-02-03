@@ -25,4 +25,3 @@ if __name__ == '__main__':
     app.exec()
 
     gui.shutdown()
-    AppContext.stop_services()

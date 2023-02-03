@@ -85,7 +85,7 @@ class BrokerWrapper:
         self.stderr_monitor = Thread(target=self._monitor, args=(self.process.stderr,), daemon=True)
         self.stderr_monitor.start()
 
-        if callable(self.on_start): self.on_start(self)
+        if callable(self.on_start): self.on_start()
 
     def stop(self):
         if self.process is not None and self.process.poll() is None:
