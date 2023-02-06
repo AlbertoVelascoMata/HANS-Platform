@@ -4,14 +4,20 @@ from pathlib import Path
 
 from flask import Flask, request, send_file, jsonify, send_from_directory
 from werkzeug.serving import make_server
+from PyQt5.QtCore import QObject, pyqtSignal
 
 from context import AppContext, Session, Participant
 
 QUESTIONS_FOLDER = Path('questions')
 
-class ServerAPI(Thread):
+class ServerAPI(Thread, QObject):
+    on_start = pyqtSignal()
+    on_session_created = pyqtSignal(Session)
+    on_participant_joined = pyqtSignal(Session, Participant)
+
     def __init__(self, host='0.0.0.0', port=5000):
         Thread.__init__(self)
+        QObject.__init__(self)
         self.app = Flask(__name__)
 
         @self.app.route('/')
@@ -34,9 +40,8 @@ class ServerAPI(Thread):
         def api_create_session():
             session = Session()
             AppContext.sessions[session.id] = session
-            if self.on_session_created:
-                self.on_session_created(session)
-            
+
+            self.on_session_created.emit(session)
             return jsonify(session.as_json)
 
         @self.app.route('/api/session/<int:session_id>', methods=['POST'])
@@ -51,13 +56,13 @@ class ServerAPI(Thread):
                 for key in session_data.keys()
             ):
                 return "Invalid parameter", 400
-            
+
             if 'status' in session_data:
                 try:
                     session.status = Session.Status(session_data['status'])
                 except ValueError:
                     return "Requested status is not valid", 400
-            
+
             if 'question_id' in session_data:
                 question_id = session_data['question_id']
                 if not isinstance(question_id, int):
@@ -65,13 +70,13 @@ class ServerAPI(Thread):
 
                 if not (QUESTIONS_FOLDER / str(question_id)).is_dir():
                     return "Requested question_id doesn't exist", 404
-                
+
                 session.active_question = question_id
-            
+
             if 'duration' in session_data:
                 if not isinstance(session_data['duration'], int):
                     return "Requested duration must be an integer", 400
-                
+
                 session.duration = session_data['duration']
 
             return jsonify(session.as_json)
@@ -89,7 +94,7 @@ class ServerAPI(Thread):
             if 'user' not in request.json:
                 return "Invalid request", 400
             username = request.json['user']
-            
+
             session = AppContext.sessions.get(session_id, None)
             if session is None:
                 return "Session not found", 404
@@ -100,9 +105,7 @@ class ServerAPI(Thread):
             participant = Participant(username)
             session.participants[participant.id] = participant
 
-            if self.on_participant_joined:
-                self.on_participant_joined(session, participant)
-
+            self.on_participant_joined.emit(session, participant)
             return jsonify(participant.as_json)
 
         @self.app.route('/api/question/<int:question_id>')
@@ -114,11 +117,11 @@ class ServerAPI(Thread):
             info_path = question_folder / 'info.json'
             if not info_path.is_file():
                 return "Question info not found", 500
-            
+
             with open(info_path, 'r') as f:
                 data = json.load(f)
             return jsonify(data)
-        
+
         @self.app.route('/api/question/<int:question_id>/image')
         def api_question_image_handle(question_id: int):
             question_folder = QUESTIONS_FOLDER / str(question_id)
@@ -128,20 +131,16 @@ class ServerAPI(Thread):
             img_path = next(question_folder.glob('img.*'))
             if not img_path.is_file():
                 return "Image not found for this question", 500
-            
+
             return send_file(img_path)
 
         self.server = make_server(host, port, self.app)
         self.ctx = self.app.app_context()
         self.ctx.push()
 
-        self.on_start = None
-        self.on_session_created = None
-        self.on_participant_joined = None
-
     def run(self):
-        if callable(self.on_start): self.on_start()
+        self.on_start.emit()
         self.server.serve_forever()
-    
+
     def shutdown(self):
         self.server.shutdown()

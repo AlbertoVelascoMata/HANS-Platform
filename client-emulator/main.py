@@ -13,12 +13,17 @@ MQTT_URL = 'ws://localhost:1883'
 
 Action = namedtuple('Action', ['func', 'args'])
 
+participant_id = None
+
 def request_join_session(session_id):
     print("> Trying to join session")
     res = requests.post(f"{API_URL}/api/session/{session_id}/participants", json={
         'user': 'test.user'
     })
     print(f"{res.status_code}: {res.text}")
+
+    global participant_id
+    participant_id = res.json()['id']
     action_queue.append(Action(get_session_info, (session_id,)))
 
 def get_session_info(session_id):
@@ -52,13 +57,13 @@ def get_question_info(question_id):
     action_queue.append(Action(notify_client_ready, (1,)))
 
 def notify_client_ready(session_id):
-    mqtt_client.publish(f'swarm/session/{session_id}/control', json.dumps({
+    global participant_id
+    print(f"> Sending READY command to 'swarm/session/{session_id}/control/{participant_id}'")
+    mqtt_client.publish(f'swarm/session/{session_id}/control/{participant_id}', json.dumps({
         'type': 'ready'
     }))
 
 if __name__ == '__main__':
-    
-
     mqtt_client = mqtt.Client(transport='websockets')
     mqtt_client.on_message = on_message
     mqtt_client.ws_set_options(path='/')

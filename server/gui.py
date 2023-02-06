@@ -1,4 +1,4 @@
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSlot
 from PyQt5.QtGui import QImage
 from PyQt5.QtWidgets import QMainWindow, QStatusBar, QVBoxLayout, QHBoxLayout, QGridLayout, QWidget, QGroupBox, QListWidget, QListWidgetItem, QLabel, QLineEdit, QPushButton
 
@@ -12,26 +12,32 @@ class SessionListItem(QListWidgetItem):
         self.session = session
         self.setText(f"Session {session.id}")
 
+class ParticipantWidget(QWidget):
+    def __init__(self,
+        participant,
+        parent=None
+    ):
+        super().__init__(parent)
+        self.participant = participant
+        self.participant.on_status_changed.connect(self.on_status_changed)
 
-#class ParticipantWidget(QWidget):
-#    def __init__(self,
-#        username,
-#        status=Participant.Status.JOINING,
-#        parent=None
-#    ):
-#        super().__init__(parent)
-#
-#        main_layout = QHBoxLayout(self)
-#        #self.setLayout(main_layout)
-#
-#        self.username_label = QLabel(self)
-#        main_layout.addWidget(self.username_label)
-#        self.username_label.setText(username)
-#
-#        self.status_label = QLabel(self)
-#        main_layout.addWidget(self.status_label)
-#        self.status_label.setText(status.value)
+        main_layout = QHBoxLayout(self)
 
+        id_label = QLabel(self)
+        main_layout.addWidget(id_label)
+        id_label.setText(str(participant.id))
+
+        username_label = QLabel(self)
+        main_layout.addWidget(username_label)
+        username_label.setText(participant.username)
+
+        self.status_label = QLabel(self)
+        main_layout.addWidget(self.status_label)
+        self.status_label.setText(participant.status.value)
+
+    @pyqtSlot(Participant, Participant.Status)
+    def on_status_changed(self, participant, status):
+        self.status_label.setText(status.value)
 
 class ServerGUI(QMainWindow):
     def __init__(self):
@@ -43,12 +49,34 @@ class ServerGUI(QMainWindow):
             self.mqtt_status_lbl.setText('🟢 MQTT Broker')
         elif 'api' in service.__class__.__name__.lower():
             self.api_status_lbl.setText('🟢 HTTP API')
-            AppContext.api_service.on_participant_joined = self.on_participant_joined
+            AppContext.api_service.on_participant_joined.connect(self.on_participant_joined)
             AppContext.api_service.on_session_created = self.on_session_created
             self.session_list_add_btn.setEnabled(True)
 
+    @pyqtSlot(Session)
     def on_session_created(self, session):
         self.session_list.addItem(SessionListItem(session))
+
+    @pyqtSlot(Session, Participant)
+    def on_participant_joined(self, session, participant):
+        if session == self.selected_session:
+            self.add_participant_widget(participant)
+
+    def on_add_session_btn_clicked(self):
+        session = Session()
+        AppContext.sessions[session.id] = session
+        self.on_session_created(session)
+        self.session_list.setCurrentRow(self.session_list.count() - 1)
+    
+    def on_session_start_btn_clicked(self):
+        self.selected_session.start()
+
+    def add_participant_widget(self, participant: Participant):
+        widget = ParticipantWidget(participant)
+        item = QListWidgetItem(self.session_participants_list)
+        item.setSizeHint(widget.sizeHint())
+        self.session_participants_list.addItem(item)
+        self.session_participants_list.setItemWidget(item, widget)
 
     def update_session_info(self, session):
         self.selected_session = session
@@ -60,24 +88,11 @@ class ServerGUI(QMainWindow):
         self.session_duration_txt.setText(str(session.duration))
         self.session_status_txt.setText(session.status.value)
 
+        self.session_participants_list.clear()
+        for participant in session.participants.values():
+            self.add_participant_widget(participant)
+
         self.session_info_panel.setHidden(False)
-
-    def on_add_session_clicked(self):
-        session = Session()
-        AppContext.sessions[session.id] = session
-        self.on_session_created(session)
-
-    def on_participant_joined(self, session, participant):
-        if session == self.selected_session:
-            #widget = ParticipantWidget(participant.username, participant.status)
-            #item = QListWidgetItem(self.session_participants_list)
-            #item.setSizeHint(widget.sizeHint())
-            #self.session_participants_list.addItem(item)
-            #self.session_participants_list.setItemWidget(item, widget)
-            self.session_participants_list.addItem(participant.username)
-
-    def session_start_clicked(self):
-        self.selected_session.start()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -101,13 +116,13 @@ class ServerGUI(QMainWindow):
 
         self.session_list = QListWidget(session_list_panel)
         session_list_panel_layout.addWidget(self.session_list)
-        self.session_list.itemClicked.connect(lambda item: self.update_session_info(item.session))
+        self.session_list.currentItemChanged.connect(lambda new_item, old_item: self.update_session_info(new_item.session))
 
         self.session_list_add_btn = QPushButton(session_list_panel)
         session_list_panel_layout.addWidget(self.session_list_add_btn)
         self.session_list_add_btn.setText('New session')
         self.session_list_add_btn.setEnabled(False)
-        self.session_list_add_btn.clicked.connect(self.on_add_session_clicked)
+        self.session_list_add_btn.clicked.connect(self.on_add_session_btn_clicked)
 
         self.session_info_panel = QWidget(session_panel)
         session_panel_layout.addWidget(self.session_info_panel)
@@ -143,13 +158,10 @@ class ServerGUI(QMainWindow):
         session_start_btn = QPushButton(self.session_info_panel)
         session_info_panel_layout.addWidget(session_start_btn)
         session_start_btn.setText('Start')
-        session_start_btn.clicked.connect(self.session_start_clicked)
+        session_start_btn.clicked.connect(self.on_session_start_btn_clicked)
 
         self.session_participants_list = QListWidget(self.session_info_panel)
         session_info_panel_layout.addWidget(self.session_participants_list)
-        
-
-        
 
         services_status_panel = QWidget(main_panel)
         main_panel_layout.addWidget(services_status_panel)
@@ -165,6 +177,6 @@ class ServerGUI(QMainWindow):
 
         self.statusbar = QStatusBar(self)
         self.setStatusBar(self.statusbar)
-    
+
     def shutdown(self):
         services.stop_services()

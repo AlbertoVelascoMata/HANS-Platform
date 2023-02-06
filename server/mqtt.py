@@ -31,7 +31,7 @@ class Subscriber:
     def on_log(self, client, obj, level, string):
         print(string)
 
-    def __init__(self, topic, host='localhost', port=1883):
+    def __init__(self, host='localhost', port=1883):
         self.client = mqtt.Client(transport="websockets")
         self.client.on_message = self.on_message
         self.client.on_connect = self.on_connect
@@ -39,11 +39,11 @@ class Subscriber:
         self.client.on_subscribe = self.on_subscribe
         self.client.ws_set_options(path="/")
         self.client.connect(host, port, 60)
-        self.client.subscribe(topic, 0)
+        #self.client.subscribe(topic, 0)
 
     def start(self):
         self.client.loop_start()
-    
+
     def shutdown(self):
         self.client.loop_stop()
 
