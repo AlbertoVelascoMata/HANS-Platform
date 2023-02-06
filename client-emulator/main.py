@@ -32,7 +32,8 @@ def get_session_info(session_id):
     print(f"{res.status_code}: {res.text}")
     data = res.json()
     action_queue.append(Action(subscribe_to_session_control, (session_id,)))
-    if data['status'] == 'starting':
+    #if data['status'] == 'starting':
+    if data['question_id'] is not None:
         action_queue.append(Action(get_question_info, (data['question_id'],)))
 
 def subscribe_to_session_control(session_id):
@@ -47,7 +48,7 @@ def on_message(client, obj, msg):
         if data['type'] == 'setup':
             action_queue.append(Action(get_question_info, (data['question_id'],)))
         elif data['type'] == 'start':
-            pass
+            action_queue.append(Action(send_position_update, (1,)))
 
 def get_question_info(question_id):
     print("> Retrieving question details")
@@ -62,6 +63,15 @@ def notify_client_ready(session_id):
     mqtt_client.publish(f'swarm/session/{session_id}/control/{participant_id}', json.dumps({
         'type': 'ready'
     }))
+
+def send_position_update(session_id):
+    global participant_id
+    print(f"> Sending POSITION UPDATE to 'swarm/session/{session_id}/updates/{participant_id}'")
+    mqtt_client.publish(f'swarm/session/{session_id}/updates/{participant_id}', json.dumps({
+        'data': {'position': [0,0,0,0,0]}
+    }))
+    sleep(1)
+    action_queue.append(Action(send_position_update, (session_id,)))
 
 if __name__ == '__main__':
     mqtt_client = mqtt.Client(transport='websockets')

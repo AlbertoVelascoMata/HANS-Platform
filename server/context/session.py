@@ -1,10 +1,12 @@
 import json
-from typing import Callable, Dict
+from typing import Callable, Dict, Union
+from threading import Thread
 
 from mqtt import Subscriber
 from enum import Enum
 from PyQt5.QtCore import QObject, pyqtSignal
 
+from .question import Question
 from .participant import Participant
 
 import context as ctx
@@ -44,7 +46,10 @@ class SessionEventMonitor(Subscriber):
 class Session(QObject):
     last_id = 0
 
-    on_participant_ready = pyqtSignal(Participant)
+    #on_participant_ready = pyqtSignal(Participant)
+    on_question_notified = pyqtSignal(QObject, bool)
+    on_start = pyqtSignal(QObject, bool)
+    on_stop = pyqtSignal(QObject, bool)
 
     class Status(Enum):
         WAITING = 'waiting'     # Waiting for clients to join
@@ -60,13 +65,57 @@ class Session(QObject):
         Session.last_id += 1
         self.id = Session.last_id
         self.status = Session.Status.WAITING
-        self.active_question = None
+        self._question = None
         self.duration = 30
         self.participants: Dict[Participant] = {}
 
         self.monitor = SessionEventMonitor(self.id, port=ctx.AppContext.mqtt_broker.port)
         self.monitor.on_participant_ready = self.participant_ready_handler
         self.monitor.start()
+
+    def __eq__(self, other):
+        return isinstance(other, Session) and self.id == other.id
+
+    @property
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'status': self.status.value,
+            'question_id': self._question.id if self._question else None,
+            'duration': self.duration,
+        }
+
+    @property
+    def active_question(self):
+        return self._question
+
+    @active_question.setter
+    def active_question(self, question: Union[int, Question]):
+        if question is None or isinstance(question, Question):
+            self._question = question
+        else:
+            self._question = ctx.AppContext.questions[question]
+
+        self.publish_async(
+            f'swarm/session/{self.id}/control',
+            json.dumps({
+                'type': 'setup',
+                'question_id': self._question.id if question is not None else None
+            }),
+            lambda success: self.on_question_notified.emit(self, success)
+        )
+    
+    def publish(self, topic, msg, callback: Callable[[bool], None] = None):
+        msg_handle = self.monitor.client.publish(topic, msg)
+        msg_handle.wait_for_publish()
+        if callback: callback(True) # TODO: Send false if message could not be queued
+    
+    def publish_async(self, topic, msg, post_signal=None):
+        Thread(
+            target=self.publish,
+            args=(topic, msg, post_signal),
+            daemon=True
+        ).start()
 
     def participant_ready_handler(self, participant_id: int):
         participant = self.participants.get(participant_id, None)
@@ -75,24 +124,30 @@ class Session(QObject):
             return
 
         participant.status = Participant.Status.READY
-        self.on_participant_ready.emit(participant)
-
-    @property
-    def as_json(self):
-        return {
-            'id': self.id,
-            'status': self.status.value,
-            'question_id': self.active_question,
-            'duration': self.duration,
-        }
-
-    def __eq__(self, other):
-        return isinstance(other, Session) and self.id == other.id
+        #self.on_participant_ready.emit(participant)
 
     def start(self):
-        self.monitor.client.publish(
+        def callback(success):
+            self.status = Session.Status.STARTED
+            self.on_start.emit(self, success)
+
+        self.publish_async(
             f'swarm/session/{self.id}/control',
             json.dumps({
-                'type': 'setup',
-                'question_id': 1
-            }))
+                'type': 'start'
+            }),
+            callback
+        )
+
+    def stop(self):
+        def callback(success):
+            self.status = Session.Status.WAITING
+            self.on_stop.emit(self, success)
+
+        self.publish_async(
+            f'swarm/session/{self.id}/control',
+            json.dumps({
+                'type': 'stop',
+            }),
+            callback
+        )

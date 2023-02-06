@@ -12,7 +12,7 @@ class Participant(QObject):
     on_status_changed = pyqtSignal(QObject, Status)
 
     @property
-    def as_json(self):
+    def as_dict(self):
         return {
             'id': self.id,
             'username': self.username,

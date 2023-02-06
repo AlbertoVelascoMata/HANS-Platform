@@ -15,6 +15,7 @@ if __name__ == '__main__':
                         help=f"MQTT Broker port. Default: {AppContext.args.mqtt_port}",
                         default=AppContext.args.mqtt_port)
     AppContext.args = parser.parse_args()
+    AppContext.reload_questions()
 
     app = QApplication(sys.argv)
 

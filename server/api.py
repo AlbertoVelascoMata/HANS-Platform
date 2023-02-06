@@ -30,11 +30,11 @@ class ServerAPI(Thread, QObject):
             if session is None:
                 return "Session not found", 404
 
-            return jsonify(session.as_json)
+            return jsonify(session.as_dict)
 
         @self.app.route('/api/session', methods=['GET'])
         def api_get_all_sessions():
-            return jsonify([session.as_json for session in AppContext.sessions])
+            return jsonify([session.as_dict for session in AppContext.sessions])
 
         @self.app.route('/api/session', methods=['POST'])
         def api_create_session():
@@ -42,7 +42,7 @@ class ServerAPI(Thread, QObject):
             AppContext.sessions[session.id] = session
 
             self.on_session_created.emit(session)
-            return jsonify(session.as_json)
+            return jsonify(session.as_dict)
 
         @self.app.route('/api/session/<int:session_id>', methods=['POST'])
         def api_edit_session(session_id: int):
@@ -79,7 +79,7 @@ class ServerAPI(Thread, QObject):
 
                 session.duration = session_data['duration']
 
-            return jsonify(session.as_json)
+            return jsonify(session.as_dict)
 
         @self.app.route('/api/session/<int:session_id>/participants', methods=['GET'])
         def api_session_get_all_participants(session_id: int):
@@ -87,7 +87,7 @@ class ServerAPI(Thread, QObject):
             if session is None:
                 return "Session not found", 404
 
-            return jsonify([participant.as_json for participant in session.participants])
+            return jsonify([participant.as_dict for participant in session.participants])
 
         @self.app.route('/api/session/<int:session_id>/participants', methods=['POST'])
         def api_session_add_participant(session_id: int):
@@ -106,21 +106,15 @@ class ServerAPI(Thread, QObject):
             session.participants[participant.id] = participant
 
             self.on_participant_joined.emit(session, participant)
-            return jsonify(participant.as_json)
+            return jsonify(participant.as_dict)
 
         @self.app.route('/api/question/<int:question_id>')
         def api_question_handle(question_id: int):
-            question_folder = QUESTIONS_FOLDER / str(question_id)
-            if not question_folder.is_dir():
+            question = AppContext.questions.get(question_id, None)
+            if question is None:
                 return "Question not found", 404
 
-            info_path = question_folder / 'info.json'
-            if not info_path.is_file():
-                return "Question info not found", 500
-
-            with open(info_path, 'r') as f:
-                data = json.load(f)
-            return jsonify(data)
+            return jsonify(question.as_dict)
 
         @self.app.route('/api/question/<int:question_id>/image')
         def api_question_image_handle(question_id: int):
