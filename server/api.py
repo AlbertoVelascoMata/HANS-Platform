@@ -118,15 +118,11 @@ class ServerAPI(Thread, QObject):
 
         @self.app.route('/api/question/<int:question_id>/image')
         def api_question_image_handle(question_id: int):
-            question_folder = QUESTIONS_FOLDER / str(question_id)
-            if not question_folder.is_dir():
+            question = AppContext.questions.get(question_id, None)
+            if question is None:
                 return "Question not found", 404
 
-            img_path = next(question_folder.glob('img.*'))
-            if not img_path.is_file():
-                return "Image not found for this question", 500
-
-            return send_file(img_path)
+            return send_file(question.img_path)
 
         self.server = make_server(host, port, self.app)
         self.ctx = self.app.app_context()
