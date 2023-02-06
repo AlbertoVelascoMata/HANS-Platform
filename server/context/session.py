@@ -17,8 +17,10 @@ class SessionEventMonitor(Subscriber):
         self.session_id: int = session_id
         self.on_participant_ready: Callable[[int], None] = None
 
-        self.client.subscribe(f"swarm/session/{session_id}/control/+", 0)
-        self.client.subscribe(f"swarm/session/{session_id}/updates/+", 0)
+        self.client.subscribe([
+            (f"swarm/session/{session_id}/control/+", 0),
+            (f"swarm/session/{session_id}/updates/+", 0)]
+        )
 
     def on_message(self, client, obj, msg):
         topic_data = msg.topic.split('/', 4)
