@@ -99,7 +99,7 @@ class ServerAPI(Thread, QObject):
             if session is None:
                 return "Session not found", 404
 
-            if username in session.participants:
+            if any(username == participant.username for participant in session.participants.values()):
                 return "Participant already joined session", 400
 
             participant = Participant(username)
