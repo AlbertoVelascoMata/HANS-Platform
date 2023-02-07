@@ -43,7 +43,7 @@ class SessionEventMonitor(Subscriber):
                 self.on_participant_ready(client_id)
 
         elif topic_data[3] == 'updates':
-            print(f"[session {self.session_id}] UPDATE: {msg.payload}")
+            print(f"[session {self.session_id}] UPDATE (client={client_id}): {msg.payload}")
             payload = json.loads(msg.payload)
 
 

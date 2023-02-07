@@ -59,7 +59,10 @@ def get_session_info() -> bool:
 
 def subscribe_to_session_control() -> bool:
     print(f"> Subscribing to control topic (session={State.session_id})")
-    mqtt_client.subscribe(f'swarm/session/{State.session_id}/control')
+    mqtt_client.subscribe([
+        (f'swarm/session/{State.session_id}/control', 0),
+        (f'swarm/session/{State.session_id}/updates/+', 0)
+    ])
     return True
 
 def on_message(client, obj, msg):
