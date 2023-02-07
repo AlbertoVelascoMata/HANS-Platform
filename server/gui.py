@@ -78,8 +78,8 @@ class ServerGUI(QMainWindow):
 
     def update_session_info(self, session):
         if self.selected_session is not None:
-            #self.selected_session.on_participant_ready.disconnect()
             self.selected_session.on_question_notified.disconnect()
+            self.selected_session.on_participants_ready_changed.disconnect()
             self.selected_session.on_start.disconnect()
             self.selected_session.on_stop.disconnect()
 
@@ -90,14 +90,31 @@ class ServerGUI(QMainWindow):
 
         self.session_id_txt.setText(str(session.id))
         self.session_duration_txt.setText(str(session.duration))
+        self.session_duration_txt.setEnabled(session.status == Session.Status.WAITING)
         self.session_status_txt.setText(session.status.value)
+        self.session_question_cbbox.setCurrentText(str(session.active_question.id) if session.active_question else '<none>')
+        self.session_question_cbbox.setEnabled(session.status == Session.Status.WAITING)
 
+        # Refresh participants list
         self.session_participants_list.clear()
         for participant in session.participants.values():
             self.add_participant_widget(participant)
 
-        #session.on_participant_ready.connect(...)
+        # Update participants ready count
+        participants_ready_count = session.ready_participants_count
+        participants_total_count = len(session.participants)
+        self.session_participants_ready_txt.setText(f"{participants_ready_count}/{participants_total_count} participants")
+
+        # Configure Start/Stop button
+        if session.status == Session.Status.WAITING:
+            self.session_start_btn.setText('Start')
+            self.session_start_btn.setEnabled((participants_ready_count == participants_total_count) and (participants_total_count > 0))
+        elif session.status == Session.Status.STARTED:
+            self.session_start_btn.setText('Stop')
+            self.session_start_btn.setEnabled(True)
+
         session.on_question_notified.connect(self.on_session_question_notified)
+        session.on_participants_ready_changed.connect(self.on_session_participants_ready_changed)
         session.on_start.connect(self.on_session_start)
         session.on_stop.connect(self.on_session_stop)
 
@@ -150,6 +167,8 @@ class ServerGUI(QMainWindow):
     def on_participant_joined(self, session, participant):
         if session == self.selected_session:
             self.add_participant_widget(participant)
+            self.session_start_btn.setEnabled(False)
+            self.session_participants_ready_txt.setText(f"{self.selected_session.ready_participants_count}/{len(self.selected_session.participants)} participants")
 
     def add_participant_widget(self, participant: Participant):
         widget = ParticipantWidget(participant)
@@ -158,6 +177,11 @@ class ServerGUI(QMainWindow):
         self.session_participants_list.addItem(item)
         self.session_participants_list.setItemWidget(item, widget)
 
+    @pyqtSlot(int, int)
+    def on_session_participants_ready_changed(self, ready_count, total_count):
+        if self.selected_session.status == Session.Status.WAITING:
+            self.session_start_btn.setEnabled(ready_count == total_count)
+            self.session_participants_ready_txt.setText(f"{ready_count}/{total_count} participants")
 
     ### UI EVENTS
 
@@ -232,9 +256,18 @@ class ServerGUI(QMainWindow):
         self.session_question_cbbox.addItems([str(id) for id in AppContext.questions])
         self.session_question_cbbox.currentTextChanged.connect(self.on_session_question_changed)
 
+        session_participants_ready_lbl = QLabel(session_details_panel)
+        session_details_panel_layout.addWidget(session_participants_ready_lbl, 4, 0)
+        session_participants_ready_lbl.setText("Ready:")
+
+        self.session_participants_ready_txt = QLabel(session_details_panel)
+        session_details_panel_layout.addWidget(self.session_participants_ready_txt, 4, 1)
+        self.session_participants_ready_txt.setText('0/0 participants')
+
         self.session_start_btn = QPushButton(self.session_info_panel)
         session_info_panel_layout.addWidget(self.session_start_btn)
         self.session_start_btn.setText('Start')
+        self.session_start_btn.setEnabled(False)
         self.session_start_btn.clicked.connect(self.on_session_start_btn_clicked)
 
         self.session_participants_list = QListWidget(self.session_info_panel)

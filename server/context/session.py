@@ -38,24 +38,25 @@ class SessionEventMonitor(Subscriber):
 
         if topic_data[3] == 'control':
             print(f"[session {self.session_id}] CONTROL: {msg.payload}")
-            data = json.loads(msg.payload)
-            if data['type'] == 'ready' and self.on_participant_ready:
+            payload = json.loads(msg.payload)
+            if payload['type'] == 'ready' and self.on_participant_ready:
                 self.on_participant_ready(client_id)
 
         elif topic_data[3] == 'updates':
             print(f"[session {self.session_id}] UPDATE: {msg.payload}")
+            payload = json.loads(msg.payload)
+
 
 class Session(QObject):
     last_id = 0
 
-    #on_participant_ready = pyqtSignal(Participant)
+    on_participants_ready_changed = pyqtSignal(int, int) # Number of ready participants changed. Params: (ready, total)
     on_question_notified = pyqtSignal(QObject, bool)
     on_start = pyqtSignal(QObject, bool)
     on_stop = pyqtSignal(QObject, bool)
 
     class Status(Enum):
         WAITING = 'waiting'     # Waiting for clients to join
-        STARTING = 'starting'   # The question has been notified to clients
         STARTED = 'started'     # The Swarm Session is active (answering a question)
 
     def __init__(self):
@@ -106,6 +107,13 @@ class Session(QObject):
             }),
             lambda success: self.on_question_notified.emit(self, success)
         )
+
+    @property
+    def ready_participants_count(self):
+        return sum(
+                participant.status == Participant.Status.READY
+                for participant in self.participants.values()
+            )
     
     def publish(self, topic, msg, callback: Callable[[bool], None] = None):
         msg_handle = self.monitor.client.publish(topic, msg)
@@ -126,7 +134,10 @@ class Session(QObject):
             return
 
         participant.status = Participant.Status.READY
-        #self.on_participant_ready.emit(participant)
+        self.on_participants_ready_changed.emit(
+            self.ready_participants_count,
+            len(self.participants)
+        )
 
     def start(self):
         def callback(success):

@@ -5,9 +5,9 @@ class Participant(QObject):
     last_id = 0
 
     class Status(Enum):
-        JOINING = 'joining'
         JOINED = 'joined'
         READY = 'ready'
+        ACTIVE = 'active'
 
     on_status_changed = pyqtSignal(QObject, Status)
 
@@ -24,7 +24,7 @@ class Participant(QObject):
         Participant.last_id += 1
         self.id = Participant.last_id
         self.username = username
-        self._status = Participant.Status.JOINING
+        self._status = Participant.Status.JOINED
 
     @property
     def status(self):
