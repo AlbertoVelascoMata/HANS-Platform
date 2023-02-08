@@ -76,7 +76,7 @@ class ServerGUI(QMainWindow):
 
     ### SESSION :: SELECTED
 
-    def update_session_info(self, session):
+    def update_session_info(self, session: Session):
         if self.selected_session is not None:
             self.selected_session.on_question_notified.disconnect()
             self.selected_session.on_participants_ready_changed.disconnect()
@@ -109,7 +109,7 @@ class ServerGUI(QMainWindow):
         if session.status == Session.Status.WAITING:
             self.session_start_btn.setText('Start')
             self.session_start_btn.setEnabled((participants_ready_count == participants_total_count) and (participants_total_count > 0))
-        elif session.status == Session.Status.STARTED:
+        elif session.status == Session.Status.ACTIVE:
             self.session_start_btn.setText('Stop')
             self.session_start_btn.setEnabled(True)
 
@@ -127,12 +127,12 @@ class ServerGUI(QMainWindow):
         self.session_start_btn.setEnabled(False)
         if self.selected_session.status == Session.Status.WAITING:
             self.selected_session.start()
-        elif self.selected_session.status == Session.Status.STARTED:
+        elif self.selected_session.status == Session.Status.ACTIVE:
             self.selected_session.stop()
     
     @pyqtSlot(Session, bool)
     def on_session_start(self, session, started):
-        self.session_status_txt.setText('Started')
+        self.session_status_txt.setText('Active')
         self.session_start_btn.setText('Stop')
         self.session_start_btn.setEnabled(True)
     

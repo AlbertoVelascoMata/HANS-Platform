@@ -22,7 +22,7 @@ action_queue: List[Action] = []
 
 class SessionStatus(Enum):
     WAITING = 'waiting'     # Waiting for clients to join
-    STARTED = 'started'     # The Swarm Session is active (answering a question)
+    ACTIVE = 'active'     # The Swarm Session is active (answering a question)
 
 class State:
     continue_after_stop = False
@@ -92,7 +92,7 @@ def on_message(client, obj, msg):
         if payload['type'] == 'setup':
             action_queue.append(Action(get_question_info, (payload['question_id'],)))
         elif payload['type'] == 'start':
-            State.session_status = SessionStatus.STARTED
+            State.session_status = SessionStatus.ACTIVE
             action_queue.append(Action(send_position_update))
         elif payload['type'] == 'stop':
             State.session_status = SessionStatus.WAITING
@@ -127,7 +127,7 @@ def notify_client_ready() -> bool:
     return True
 
 def send_position_update() -> bool:
-    if State.session_status != SessionStatus.STARTED:
+    if State.session_status != SessionStatus.ACTIVE:
         print(f"> Stopping continous position updates")
         return State.continue_after_stop
 

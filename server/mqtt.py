@@ -1,51 +1,67 @@
 import subprocess
 from pathlib import Path
 from threading import Thread
+from typing import Callable, Dict
 
 import paho.mqtt.client as mqtt
-
+from paho.mqtt.client import CONNACK_ACCEPTED, MQTT_ERR_SUCCESS
+from abc import ABC, abstractmethod
 MOSQUITTO_PATH = "mosquitto"
 
-'''
-def publish(client):
-    sleep(3)
-    client.publish('swarm/session/2', 'hello')
-    print("message sent")
-#t = Thread(target=publish, args=(subscriber.client,), daemon=True)
-#t.start()
-'''
-
-class Subscriber:
-    def on_connect(self, client, obj, flags, rc):
-        print("rc: "+str(rc))
-
-    def on_message(self, client, obj, msg):
-        print(f"{msg.topic}: {msg.payload}")
-
-    def on_publish(self, client, obj, mid):
-        print("mid: "+str(mid))
-
-    def on_subscribe(self, client, obj, mid, granted_qos):
-        print("Subscribed: "+str(mid)+" "+str(granted_qos))
-
-    def on_log(self, client, obj, level, string):
-        print(string)
+class MQTTClient(ABC):
+    @abstractmethod
+    def connection_handler(self, connected: bool, reason: int) -> None: ...
 
     def __init__(self, host='localhost', port=1883):
+        self.host = host
+        self.port = port
+        self.connected = False
+        self.pending_subscriptions: Dict[int, Callable[[bool], None]] = {}
         self.client = mqtt.Client(transport="websockets")
-        self.client.on_message = self.on_message
         self.client.on_connect = self.on_connect
-        self.client.on_publish = self.on_publish
+        self.client.on_disconnect = self.on_disconnect
         self.client.on_subscribe = self.on_subscribe
         self.client.ws_set_options(path="/")
-        self.client.connect(host, port, 60)
-        #self.client.subscribe(topic, 0)
 
     def start(self):
+        self.client.connect_async(self.host, self.port, 60)
         self.client.loop_start()
 
     def shutdown(self):
         self.client.loop_stop()
+
+    def on_connect(self, client, obj, flags, rc):
+        self.connected = rc == CONNACK_ACCEPTED
+        self.connection_handler(self.connected, rc)
+
+    def on_disconnect(self, client, obj, rc):
+        self.connected = False
+        self.connection_handler(False, rc)
+    
+    def on_subscribe(self, client, obj, message_id, granted_qos):
+        if message_id not in self.pending_subscriptions:
+            return
+        self.pending_subscriptions[message_id](True)
+
+    def subscribe(self, topic, callback: Callable[[bool], None] = None):
+        result, message_id = self.client.subscribe(topic)
+        if callback:
+            if result == MQTT_ERR_SUCCESS:
+                self.pending_subscriptions[message_id] = callback
+            else:
+                callback(False)
+
+    def publish_sync(self, topic, msg, callback: Callable[[bool], None] = None):
+        msg_handle = self.client.publish(topic, msg)
+        msg_handle.wait_for_publish()
+        if callback: callback(True) # TODO: Send false if message could not be queued
+
+    def publish(self, topic, msg, post_callback=None):
+        Thread(
+            target=self.publish_sync,
+            args=(topic, msg, post_callback),
+            daemon=True
+        ).start()
 
 class BrokerWrapper:
     def __init__(self, host, port=1883):

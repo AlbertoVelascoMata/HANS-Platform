@@ -2,7 +2,7 @@ import json
 from typing import Callable, Dict, Union
 from threading import Thread
 
-from mqtt import Subscriber
+from mqtt import MQTTClient
 from enum import Enum
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -11,53 +11,129 @@ from .participant import Participant
 
 import context as ctx
 
-class SessionEventMonitor(Subscriber):
+class SessionCommunicator(MQTTClient):
+    class Status(Enum):
+        DISCONNECTED = 'disconnected'
+        CONNECTED = 'connected'
+        SUBSCRIBED = 'subscribed'
+
+    @property
+    def status(self) -> Status:
+        return self._status
+    
+    @status.setter
+    def status(self, status: Status):
+        self._status = status
+        if self.on_status_changed:
+            self.on_status_changed(self.status)
+
     def __init__(self, session_id: int, host='localhost', port=1883):
-        Subscriber.__init__(self, host, port)
         self.session_id: int = session_id
+        self._status = SessionCommunicator.Status.DISCONNECTED
+        
+        self.on_status_changed: Callable[[SessionCommunicator.Status], None] = None
         self.on_participant_ready: Callable[[int], None] = None
+        self.on_participant_update: Callable[[int, dict]] = None
 
-        self.client.subscribe([
-            (f"swarm/session/{session_id}/control/+", 0),
-            (f"swarm/session/{session_id}/updates/+", 0)]
-        )
+        MQTTClient.__init__(self, host, port)
+        self.client.message_callback_add('swarm/session/+/control/+', self.control_message_handler)
+        self.client.message_callback_add('swarm/session/+/updates/+', self.updates_message_handler)
 
-    def on_message(self, client, obj, msg):
-        topic_data = msg.topic.split('/', 4)
-        if (
-            len(topic_data) != 5
-            or topic_data[0] != 'swarm'
-            or topic_data[1] != 'session'
-            or topic_data[2] != str(self.session_id)
-            or topic_data[3] not in ['control', 'updates']
-        ):
-            print(f"ERROR: Invalid topic '{msg.topic}' for Session ID={self.session_id}")
+    def connection_handler(self, connected, reason) -> None:
+        if not connected:
+            self.status = SessionCommunicator.Status.DISCONNECTED
             return
 
-        client_id = int(topic_data[4])
+        self.status = SessionCommunicator.Status.CONNECTED
 
-        if topic_data[3] == 'control':
-            print(f"[session {self.session_id}] CONTROL: {msg.payload}")
-            payload = json.loads(msg.payload)
-            if payload['type'] == 'ready' and self.on_participant_ready:
-                self.on_participant_ready(client_id)
+        # Subscribe to session topic
+        def callback(success: bool):
+            if success:
+                self.status = SessionCommunicator.Status.SUBSCRIBED
+        self.subscribe(f"swarm/session/{self.session_id}/#", callback)        
 
-        elif topic_data[3] == 'updates':
-            print(f"[session {self.session_id}] UPDATE (client={client_id}): {msg.payload}")
-            payload = json.loads(msg.payload)
+    def control_message_handler(self, client, obj, msg):
+        client_id = int(msg.topic.split('/')[-1])
+        print(f"[session {self.session_id}] CONTROL (client={client_id}): {msg.payload}")
 
+        payload = json.loads(msg.payload)
+        msg_type = payload.get('type', '')
+
+        if msg_type == 'ready' and self.on_participant_ready:
+            self.on_participant_ready(client_id)
+        else:
+            print("Unknown message received in control topic")
+
+    def updates_message_handler(self, client, obj, msg):
+        client_id = int(msg.topic.split('/')[-1])
+        print(f"[session {self.session_id}] UPDATE (client={client_id}): {msg.payload}")
+        payload = json.loads(msg.payload)
+
+        if self.on_participant_update:
+            self.on_participant_update(client_id, payload.get('data', {}))
 
 class Session(QObject):
+    '''
+        Contains all attributes, methods and events to handle a SWARM Session.
+    '''
     last_id = 0
 
-    on_participants_ready_changed = pyqtSignal(int, int) # Number of ready participants changed. Params: (ready, total)
-    on_question_notified = pyqtSignal(QObject, bool)
-    on_start = pyqtSignal(QObject, bool)
-    on_stop = pyqtSignal(QObject, bool)
-
     class Status(Enum):
-        WAITING = 'waiting'     # Waiting for clients to join
-        STARTED = 'started'     # The Swarm Session is active (answering a question)
+        WAITING = 'waiting' # Waiting for clients to join
+        ACTIVE = 'active'   # The Swarm Session is active (answering a question)
+
+    on_status_changed = pyqtSignal(QObject, Status)
+    '''
+        `on_status_changed(session: Session, status: Session.Status)`
+
+        Emitted when the session status changes.
+    '''
+    on_connection_status_changed = pyqtSignal(QObject, SessionCommunicator.Status)
+    '''
+        `on_connection_status_changed(session: Session, status: SessionCommunicator.Status)`
+
+        Emitted when the session MQTT communication changed its state.
+    '''
+
+    on_question_notified = pyqtSignal(QObject, bool)
+    '''
+        `on_question_notified(session: Session, success: bool)`
+
+        Emitted when the question setup event was sent. The `success`
+        param indicates whether the event was successfully published or not.
+    '''
+
+    on_participants_ready_changed = pyqtSignal(int, int)
+    '''
+        `on_participants_ready_changed(ready_count: int, total_count: int)`
+
+        Emitted when the number of ready participants changed.
+    '''
+
+    on_start = pyqtSignal(QObject, bool)
+    '''
+        `on_start(session: Session, started: bool)`
+
+        Emitted when the start event was sent. The `started` param indicates
+        whether the event was successfully published or not.
+    '''
+
+    on_stop = pyqtSignal(QObject, bool)
+    '''
+        `on_stop(session: Session, stopped: bool)`
+
+        Emitted when the stop event was sent. The `stopped` param indicates
+        whether the event was successfully published or not.
+    '''
+
+    @property
+    def status(self) -> Status:
+        return self._status
+    
+    @status.setter
+    def status(self, status: Status):
+        self._status = status
+        self.on_status_changed.emit(self, status)
 
     def __init__(self):
         if ctx.AppContext.mqtt_broker is None:
@@ -67,14 +143,15 @@ class Session(QObject):
 
         Session.last_id += 1
         self.id = Session.last_id
-        self.status = Session.Status.WAITING
+        self._status = Session.Status.WAITING
         self._question = None
         self.duration = 30
         self.participants: Dict[Participant] = {}
 
-        self.monitor = SessionEventMonitor(self.id, port=ctx.AppContext.mqtt_broker.port)
-        self.monitor.on_participant_ready = self.participant_ready_handler
-        self.monitor.start()
+        self.communicator = SessionCommunicator(self.id, port=ctx.AppContext.mqtt_broker.port)
+        self.communicator.on_status_changed = lambda status: self.on_connection_status_changed.emit(self, status)
+        self.communicator.on_participant_ready = self.participant_ready_handler
+        self.communicator.start()
 
     def __eq__(self, other):
         return isinstance(other, Session) and self.id == other.id
@@ -83,7 +160,7 @@ class Session(QObject):
     def as_dict(self):
         return {
             'id': self.id,
-            'status': self.status.value,
+            'status': self._status.value,
             'question_id': self._question.id if self._question else None,
             'duration': self.duration,
         }
@@ -99,7 +176,7 @@ class Session(QObject):
         else:
             self._question = ctx.AppContext.questions[question]
 
-        self.publish_async(
+        self.communicator.publish(
             f'swarm/session/{self.id}/control',
             json.dumps({
                 'type': 'setup',
@@ -114,18 +191,6 @@ class Session(QObject):
                 participant.status == Participant.Status.READY
                 for participant in self.participants.values()
             )
-    
-    def publish(self, topic, msg, callback: Callable[[bool], None] = None):
-        msg_handle = self.monitor.client.publish(topic, msg)
-        msg_handle.wait_for_publish()
-        if callback: callback(True) # TODO: Send false if message could not be queued
-    
-    def publish_async(self, topic, msg, post_signal=None):
-        Thread(
-            target=self.publish,
-            args=(topic, msg, post_signal),
-            daemon=True
-        ).start()
 
     def participant_ready_handler(self, participant_id: int):
         participant = self.participants.get(participant_id, None)
@@ -141,10 +206,10 @@ class Session(QObject):
 
     def start(self):
         def callback(success):
-            self.status = Session.Status.STARTED
+            self.status = Session.Status.ACTIVE
             self.on_start.emit(self, success)
 
-        self.publish_async(
+        self.communicator.publish(
             f'swarm/session/{self.id}/control',
             json.dumps({
                 'type': 'start'
@@ -157,7 +222,7 @@ class Session(QObject):
             self.status = Session.Status.WAITING
             self.on_stop.emit(self, success)
 
-        self.publish_async(
+        self.communicator.publish(
             f'swarm/session/{self.id}/control',
             json.dumps({
                 'type': 'stop',

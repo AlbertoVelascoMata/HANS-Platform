@@ -1,7 +1,7 @@
 from typing import Callable, Union
 from context import AppContext
 from api import ServerAPI
-from mqtt import BrokerWrapper, Subscriber
+from mqtt import BrokerWrapper
 
 def start_services(
     on_start_cb: Callable[[Union[BrokerWrapper, ServerAPI]], None]=None
