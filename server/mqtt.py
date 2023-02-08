@@ -37,7 +37,7 @@ class MQTTClient(ABC):
     def on_disconnect(self, client, obj, rc):
         self.connected = False
         self.connection_handler(False, rc)
-    
+
     def on_subscribe(self, client, obj, message_id, granted_qos):
         if message_id not in self.pending_subscriptions:
             return

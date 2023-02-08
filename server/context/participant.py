@@ -11,14 +11,6 @@ class Participant(QObject):
 
     on_status_changed = pyqtSignal(QObject, Status)
 
-    @property
-    def as_dict(self):
-        return {
-            'id': self.id,
-            'username': self.username,
-            'status': self._status.value,
-        }
-
     def __init__(self, username):
         QObject.__init__(self)
         Participant.last_id += 1
@@ -35,3 +27,11 @@ class Participant(QObject):
         if status != self._status:
             self._status = status
             self.on_status_changed.emit(self, status)
+
+    @property
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'username': self.username,
+            'status': self._status.value,
+        }

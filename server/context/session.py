@@ -1,6 +1,5 @@
 import json
 from typing import Callable, Dict, Union
-from threading import Thread
 
 from mqtt import MQTTClient
 from enum import Enum
@@ -17,20 +16,10 @@ class SessionCommunicator(MQTTClient):
         CONNECTED = 'connected'
         SUBSCRIBED = 'subscribed'
 
-    @property
-    def status(self) -> Status:
-        return self._status
-    
-    @status.setter
-    def status(self, status: Status):
-        self._status = status
-        if self.on_status_changed:
-            self.on_status_changed(self.status)
-
     def __init__(self, session_id: int, host='localhost', port=1883):
         self.session_id: int = session_id
         self._status = SessionCommunicator.Status.DISCONNECTED
-        
+
         self.on_status_changed: Callable[[SessionCommunicator.Status], None] = None
         self.on_participant_ready: Callable[[int], None] = None
         self.on_participant_update: Callable[[int, dict]] = None
@@ -38,6 +27,16 @@ class SessionCommunicator(MQTTClient):
         MQTTClient.__init__(self, host, port)
         self.client.message_callback_add('swarm/session/+/control/+', self.control_message_handler)
         self.client.message_callback_add('swarm/session/+/updates/+', self.updates_message_handler)
+
+    @property
+    def status(self) -> Status:
+        return self._status
+
+    @status.setter
+    def status(self, status: Status):
+        self._status = status
+        if self.on_status_changed:
+            self.on_status_changed(self.status)
 
     def connection_handler(self, connected, reason) -> None:
         if not connected:
@@ -50,7 +49,7 @@ class SessionCommunicator(MQTTClient):
         def callback(success: bool):
             if success:
                 self.status = SessionCommunicator.Status.SUBSCRIBED
-        self.subscribe(f"swarm/session/{self.session_id}/#", callback)        
+        self.subscribe(f"swarm/session/{self.session_id}/#", callback)
 
     def control_message_handler(self, client, obj, msg):
         client_id = int(msg.topic.split('/')[-1])
@@ -103,6 +102,13 @@ class Session(QObject):
         param indicates whether the event was successfully published or not.
     '''
 
+    on_participant_joined = pyqtSignal(QObject, Participant)
+    '''
+        `on_participant_joined(session: Session, participant: Participant)`
+
+        Emitted when the a new participant joins the session.
+    '''
+
     on_participants_ready_changed = pyqtSignal(int, int)
     '''
         `on_participants_ready_changed(ready_count: int, total_count: int)`
@@ -126,15 +132,6 @@ class Session(QObject):
         whether the event was successfully published or not.
     '''
 
-    @property
-    def status(self) -> Status:
-        return self._status
-    
-    @status.setter
-    def status(self, status: Status):
-        self._status = status
-        self.on_status_changed.emit(self, status)
-
     def __init__(self):
         if ctx.AppContext.mqtt_broker is None:
             raise RuntimeError("MQTT broker not started")
@@ -157,13 +154,13 @@ class Session(QObject):
         return isinstance(other, Session) and self.id == other.id
 
     @property
-    def as_dict(self):
-        return {
-            'id': self.id,
-            'status': self._status.value,
-            'question_id': self._question.id if self._question else None,
-            'duration': self.duration,
-        }
+    def status(self) -> Status:
+        return self._status
+
+    @status.setter
+    def status(self, status: Status):
+        self._status = status
+        self.on_status_changed.emit(self, status)
 
     @property
     def active_question(self):
@@ -191,6 +188,19 @@ class Session(QObject):
                 participant.status == Participant.Status.READY
                 for participant in self.participants.values()
             )
+
+    @property
+    def as_dict(self):
+        return {
+            'id': self.id,
+            'status': self._status.value,
+            'question_id': self._question.id if self._question else None,
+            'duration': self.duration,
+        }
+
+    def add_participant(self, participant: Participant):
+        self.participants[participant.id] = participant
+        self.on_participant_joined.emit(self, participant)
 
     def participant_ready_handler(self, participant_id: int):
         participant = self.participants.get(participant_id, None)

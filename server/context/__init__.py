@@ -2,9 +2,9 @@ from argparse import Namespace
 from typing import Dict
 from pathlib import Path
 
-from .question import Question
-from .session import Session
-from .participant import Participant
+from context.question import Question
+from context.session import Session
+from context.participant import Participant
 
 QUESTIONS_FOLDER = Path('questions')
 

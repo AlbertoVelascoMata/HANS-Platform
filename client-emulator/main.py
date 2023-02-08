@@ -7,7 +7,6 @@ from argparse import ArgumentParser
 
 import paho.mqtt.client as mqtt
 import requests
-from collections import namedtuple
 
 API_URL = 'http://localhost:5000'
 MQTT_URL = 'ws://localhost:1883'
@@ -82,12 +81,12 @@ def on_message(client, obj, msg):
     if session_id != State.session_id:
         print(f"* WARNING: Unknown session ID '{session_id}'")
         return
-    
+
     if topic_data[3] == 'control':
         if len(topic_data) > 4:
             print("* WARNING: Participants should not receive other participants control messages")
             return
-        
+
         payload = json.loads(msg.payload)
         if payload['type'] == 'setup':
             action_queue.append(Action(get_question_info, (payload['question_id'],)))
@@ -97,12 +96,12 @@ def on_message(client, obj, msg):
         elif payload['type'] == 'stop':
             State.session_status = SessionStatus.WAITING
             State.question = None
-    
+
     elif topic_data[3] == 'updates':
         if len(topic_data) != 5:
             print("* WARNING: An update was received in a non-participant-specific topic")
             return
-        
+
         participant_id = int(topic_data[4])
         if participant_id == State.participant_id:
             print("\tSelf update discarded")

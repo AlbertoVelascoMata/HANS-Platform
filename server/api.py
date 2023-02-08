@@ -1,4 +1,3 @@
-import json
 from threading import Thread
 from pathlib import Path
 
@@ -13,7 +12,6 @@ QUESTIONS_FOLDER = Path('questions')
 class ServerAPI(Thread, QObject):
     on_start = pyqtSignal()
     on_session_created = pyqtSignal(Session)
-    on_participant_joined = pyqtSignal(Session, Participant)
 
     def __init__(self, host='0.0.0.0', port=5000):
         Thread.__init__(self)
@@ -103,9 +101,8 @@ class ServerAPI(Thread, QObject):
                 return "Participant already joined session", 400
 
             participant = Participant(username)
-            session.participants[participant.id] = participant
+            session.add_participant(participant)
 
-            self.on_participant_joined.emit(session, participant)
             return jsonify(participant.as_dict)
 
         @self.app.route('/api/question/<int:question_id>')

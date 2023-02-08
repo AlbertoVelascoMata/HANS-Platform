@@ -4,6 +4,13 @@ from pathlib import Path
 class Question:
     last_id = 0
 
+    def __init__(self, query, answers, img_path):
+        Question.last_id += 1
+        self.id = Question.last_id
+        self.query = query
+        self.answers = answers
+        self.img_path = img_path
+
     @property
     def as_dict(self):
         return {
@@ -11,13 +18,6 @@ class Question:
             'query': self.query,
             'answers': self.answers,
         }
-
-    def __init__(self, query, answers, img_path):
-        Question.last_id += 1
-        self.id = Question.last_id
-        self.query = query
-        self.answers = answers
-        self.img_path = img_path
 
     @staticmethod
     def from_folder(question_folder: Path):
