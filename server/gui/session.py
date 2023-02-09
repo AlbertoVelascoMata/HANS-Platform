@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
 )
 
 from context import AppContext, Session, Participant
+from context.session import SessionCommunicator
 from gui.participant import ParticipantWidget
 
 class SessionListItem(QListWidgetItem):
@@ -30,6 +31,28 @@ class SessionPanelWidget(QWidget):
         if session is not None:
             self.set_session(session)
 
+    def set_connection_status(self, status: SessionCommunicator.Status):
+        self.connection_txt.setText({
+            SessionCommunicator.Status.DISCONNECTED: '🔴 Disconnected',
+            SessionCommunicator.Status.CONNECTED: '🔵 Connected',
+            SessionCommunicator.Status.SUBSCRIBED: '🟢 Subscribed',
+        }[status])
+
+    @pyqtSlot(Session, SessionCommunicator.Status)
+    def on_connection_status_changed(self, session: Session, status: SessionCommunicator.Status):
+        self.set_connection_status(status)
+
+    def set_status(self, status: Session.Status):
+        self.status_txt.setText({
+            Session.Status.WAITING: 'Waiting for participants to join',
+            Session.Status.ACTIVE: 'Active'
+        }[status])
+
+    @pyqtSlot(Session, Session.Status)
+    def on_status_changed(self, session: Session, status: Session.Status):
+        self.set_status(status)
+        self.duration_txt.setEnabled(status == Session.Status.WAITING)
+        self.question_cbbox.setEnabled(session.status == Session.Status.WAITING)
 
     ### SET QUESTION
 
@@ -47,7 +70,6 @@ class SessionPanelWidget(QWidget):
     @pyqtSlot(Session, bool)
     def on_question_notified(self, session, notified):
         self.question_cbbox.setEnabled(True)
-
 
     ### ADD PARTICIPANT
 
@@ -73,7 +95,6 @@ class SessionPanelWidget(QWidget):
             self.start_btn.setEnabled(ready_count == total_count)
             self.participants_ready_txt.setText(f"{ready_count}/{total_count} participants")
 
-
     ### START / STOP
 
     def on_start_btn_clicked(self):
@@ -85,13 +106,11 @@ class SessionPanelWidget(QWidget):
 
     @pyqtSlot(Session, bool)
     def on_start(self, session, started):
-        self.status_txt.setText('Active')
         self.start_btn.setText('Stop')
         self.start_btn.setEnabled(True)
 
     @pyqtSlot(Session, bool)
     def on_stop(self, session, stopped):
-        self.status_txt.setText('Waiting')
         self.start_btn.setText('Start')
         self.start_btn.setEnabled(True)
 
@@ -100,6 +119,8 @@ class SessionPanelWidget(QWidget):
 
     def set_session(self, session: Session):
         if self.session is not None:
+            self.session.on_connection_status_changed.disconnect()
+            self.session.on_status_changed.disconnect()
             self.session.on_question_notified.disconnect()
             self.session.on_participant_joined.disconnect()
             self.session.on_participants_ready_changed.disconnect()
@@ -111,9 +132,10 @@ class SessionPanelWidget(QWidget):
             return
 
         self.id_txt.setText(str(session.id))
+        self.set_connection_status(session.communicator.status)
         self.duration_txt.setText(str(session.duration))
         self.duration_txt.setEnabled(session.status == Session.Status.WAITING)
-        self.status_txt.setText(session.status.value)
+        self.set_status(session.status)
         self.question_cbbox.setCurrentText(str(session.active_question.id) if session.active_question else '<none>')
         self.question_cbbox.setEnabled(session.status == Session.Status.WAITING)
 
@@ -135,6 +157,8 @@ class SessionPanelWidget(QWidget):
             self.start_btn.setText('Stop')
             self.start_btn.setEnabled(True)
 
+        session.on_connection_status_changed.connect(self.on_connection_status_changed)
+        session.on_status_changed.connect(self.on_status_changed)
         session.on_question_notified.connect(self.on_question_notified)
         session.on_participant_joined.connect(self.on_participant_joined)
         session.on_participants_ready_changed.connect(self.on_participants_ready_changed)
@@ -149,49 +173,69 @@ class SessionPanelWidget(QWidget):
         details_panel_layout = QGridLayout(details_panel)
         details_panel.setTitle('Session details')
 
+        details_row = 0
         id_lbl = QLabel(details_panel)
-        details_panel_layout.addWidget(id_lbl, 0, 0)
+        details_panel_layout.addWidget(id_lbl, details_row, 0)
         id_lbl.setText('ID:')
 
         self.id_txt = QLineEdit(details_panel)
-        details_panel_layout.addWidget(self.id_txt, 0, 1)
+        details_panel_layout.addWidget(self.id_txt, details_row, 1)
 
+        ## Connection status
+        details_row += 1
+        connection_lbl = QLabel(details_panel)
+        details_panel_layout.addWidget(connection_lbl, details_row, 0)
+        connection_lbl.setText('Connection:')
+
+        self.connection_txt = QLabel(details_panel)
+        details_panel_layout.addWidget(self.connection_txt, details_row, 1)
+
+        ## Duration
+        details_row += 1
         duration_lbl = QLabel(details_panel)
-        details_panel_layout.addWidget(duration_lbl, 1, 0)
+        details_panel_layout.addWidget(duration_lbl, details_row, 0)
         duration_lbl.setText('Duration:')
 
         self.duration_txt = QLineEdit(details_panel)
-        details_panel_layout.addWidget(self.duration_txt, 1, 1)
+        details_panel_layout.addWidget(self.duration_txt, details_row, 1)
 
+        ## Session status
+        details_row += 1
         status_lbl = QLabel(details_panel)
-        details_panel_layout.addWidget(status_lbl, 2, 0)
+        details_panel_layout.addWidget(status_lbl, details_row, 0)
         status_lbl.setText('Status:')
 
         self.status_txt = QLabel(details_panel)
-        details_panel_layout.addWidget(self.status_txt, 2, 1)
+        details_panel_layout.addWidget(self.status_txt, details_row, 1)
 
+        ## Question
+        details_row += 1
         question_lbl = QLabel(details_panel)
-        details_panel_layout.addWidget(question_lbl, 3, 0)
+        details_panel_layout.addWidget(question_lbl, details_row, 0)
         question_lbl.setText("Question:")
 
         self.question_cbbox = QComboBox(details_panel)
-        details_panel_layout.addWidget(self.question_cbbox, 3, 1)
+        details_panel_layout.addWidget(self.question_cbbox, details_row, 1)
         self.question_cbbox.addItem('<none>')
         self.question_cbbox.addItems([str(id) for id in AppContext.questions])
         self.question_cbbox.currentTextChanged.connect(self.on_question_changed)
 
+        ## Participants ready count
+        details_row += 1
         participants_ready_lbl = QLabel(details_panel)
-        details_panel_layout.addWidget(participants_ready_lbl, 4, 0)
+        details_panel_layout.addWidget(participants_ready_lbl, details_row, 0)
         participants_ready_lbl.setText("Ready:")
 
         self.participants_ready_txt = QLabel(details_panel)
-        details_panel_layout.addWidget(self.participants_ready_txt, 4, 1)
+        details_panel_layout.addWidget(self.participants_ready_txt, details_row, 1)
 
+        ## Start button
         self.start_btn = QPushButton(self)
         main_panel_layout.addWidget(self.start_btn)
         self.start_btn.setText('Start')
         self.start_btn.setEnabled(False)
         self.start_btn.clicked.connect(self.on_start_btn_clicked)
 
+        ## Participants list
         self.participants_list = QListWidget(self)
         main_panel_layout.addWidget(self.participants_list)
