@@ -1,4 +1,6 @@
 import json
+from datetime import datetime
+from io import TextIOBase
 from typing import Callable, Dict, Union
 
 from mqtt import MQTTClient
@@ -22,7 +24,7 @@ class SessionCommunicator(MQTTClient):
 
         self.on_status_changed: Callable[[SessionCommunicator.Status], None] = None
         self.on_participant_ready: Callable[[int], None] = None
-        self.on_participant_update: Callable[[int, dict]] = None
+        self.on_participant_update: Callable[[int, float, dict]] = None
 
         MQTTClient.__init__(self, host, port)
         self.client.message_callback_add('swarm/session/+/control/+', self.control_message_handler)
@@ -59,9 +61,16 @@ class SessionCommunicator(MQTTClient):
         msg_type = payload.get('type', '')
 
         if msg_type == 'ready' and self.on_participant_ready:
+            # TODO: Participants should also notify their configured question_id and duration,
+            #       so the server can check if their ready state matches de current session or
+            #       is older (i.e. the question has changed twice and the participant still has
+            #       the previous question configured)
+            #       Message format: {"type": "ready", "question_id": 1, "duration": 30}
             self.on_participant_ready(client_id)
         else:
             print("Unknown message received in control topic")
+            # TODO: Implement a 'keep-alive' mechanism: participants must send keep-alive messages
+            #       periodically so the server can determine if they have left without notifying
 
     def updates_message_handler(self, client, obj, msg):
         client_id = int(msg.topic.split('/')[-1])
@@ -69,7 +78,7 @@ class SessionCommunicator(MQTTClient):
         payload = json.loads(msg.payload)
 
         if self.on_participant_update:
-            self.on_participant_update(client_id, payload.get('data', {}))
+            self.on_participant_update(client_id, payload.get('timestamp', None), payload.get('data', {}))
 
 class Session(QObject):
     '''
@@ -80,6 +89,9 @@ class Session(QObject):
     class Status(Enum):
         WAITING = 'waiting' # Waiting for clients to join
         ACTIVE = 'active'   # The Swarm Session is active (answering a question)
+        # TODO: There should be at least an additional state where the server is
+        #       waiting for clients to get ready. This would be useful for the GUI
+        #       to check if the session can start or not
 
     on_status_changed = pyqtSignal(QObject, Status)
     '''
@@ -144,10 +156,12 @@ class Session(QObject):
         self._question = None
         self.duration = 30
         self.participants: Dict[Participant] = {}
+        self.log_file: TextIOBase = None
 
         self.communicator = SessionCommunicator(self.id, port=ctx.AppContext.mqtt_broker.port)
         self.communicator.on_status_changed = lambda status: self.on_connection_status_changed.emit(self, status)
         self.communicator.on_participant_ready = self.participant_ready_handler
+        self.communicator.on_participant_update = self.participant_update_handler
         self.communicator.start()
 
     def __eq__(self, other):
@@ -214,8 +228,26 @@ class Session(QObject):
             len(self.participants)
         )
 
-    def start(self):
+    def start(self) -> bool:
+        if self._question is None:
+            self.on_start.emit(self, False)
+            return
+
+        # TODO: This should be done asynchronously
+        session_time = datetime.now()
+        log_folder = ctx.SESSION_LOG_FOLDER / session_time.strftime('%Y-%m-%d-%H-%M-%S')
+        log_folder.mkdir(parents=True, exist_ok=True)
+        with open(log_folder / 'session.json', 'w') as f:
+            json.dump({
+                'time': session_time.isoformat(),
+                'id': self.id,
+                'question': self._question.id,
+                'duration': self.duration,
+                'participants': [participant.as_dict for participant in self.participants.values()]
+            }, f, indent=4)
+
         def callback(success):
+            self.log_file = open(log_folder / 'log.csv', 'w')
             self.status = Session.Status.ACTIVE
             self.on_start.emit(self, success)
 
@@ -239,3 +271,20 @@ class Session(QObject):
             }),
             callback
         )
+
+        if self.log_file:
+            self.log_file.close()
+            self.log_file = None
+    
+    def participant_update_handler(self, participant_id: int, timestamp: float, data: dict):
+        position_data = data.get('position', None)
+        if not position_data:
+            return
+
+        if self.log_file:
+            self.log_file.write(f"{participant_id},{timestamp},{','.join(str(e) for e in position_data)}\n")
+
+        # TODO: Maybe the server should not rely the calculation of the central cue
+        #       position to the clients, but instead calculate it every X milliseconds
+        #       and send it over the topic 'swarm/session/<session-id>/updates' (which
+        #       is currently not used since clients send updates over their own subtopics) 

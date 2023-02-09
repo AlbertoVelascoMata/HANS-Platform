@@ -105,6 +105,11 @@ class ServerAPI(Thread, QObject):
 
             return jsonify(participant.as_dict)
 
+        @self.app.route('/api/session/<int:session_id>/participants/<int:participant_id>', methods=['DELETE'])
+        def api_session_remove_participant(session_id: int, participant_id: int):
+            # TODO: Implement the participant delete endpoint
+            return "Not implemented", 500
+
         @self.app.route('/api/question/<int:question_id>')
         def api_question_handle(question_id: int):
             question = AppContext.questions.get(question_id, None)

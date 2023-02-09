@@ -7,6 +7,7 @@ from context.session import Session
 from context.participant import Participant
 
 QUESTIONS_FOLDER = Path('questions')
+SESSION_LOG_FOLDER = Path('session_log')
 
 class AppContext:
     args = Namespace(

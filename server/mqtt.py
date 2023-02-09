@@ -108,7 +108,9 @@ class BrokerWrapper:
             self.process.terminate()
         if self.stdout_monitor is not None:
             self.stdout_monitor.join()
+            self.stdout_monitor = None
         if self.stderr_monitor is not None:
             self.stderr_monitor.join()
+            self.stderr_monitor = None
 
         return self.process.poll()

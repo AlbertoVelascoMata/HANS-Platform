@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 import json
 from typing import Callable, List
-from time import sleep
+from time import sleep, time
 from enum import Enum
 from argparse import ArgumentParser
 
@@ -27,6 +27,7 @@ class State:
     continue_after_stop = False
     session_id = None
     session_status = SessionStatus.WAITING
+    session_start_time = None
     participant_id = None
     question = None
 
@@ -89,9 +90,12 @@ def on_message(client, obj, msg):
 
         payload = json.loads(msg.payload)
         if payload['type'] == 'setup':
-            action_queue.append(Action(get_question_info, (payload['question_id'],)))
+            State.question = None
+            if payload['question_id'] is not None:
+                action_queue.append(Action(get_question_info, (payload['question_id'],)))
         elif payload['type'] == 'start':
             State.session_status = SessionStatus.ACTIVE
+            State.session_start_time = time()
             action_queue.append(Action(send_position_update))
         elif payload['type'] == 'stop':
             State.session_status = SessionStatus.WAITING
@@ -132,7 +136,8 @@ def send_position_update() -> bool:
 
     print(f"> Sending POSITION UPDATE (session={State.session_id}, participant={State.participant_id}, question={State.question['id'] if State.question else None})")
     mqtt_client.publish(f'swarm/session/{State.session_id}/updates/{State.participant_id}', json.dumps({
-        'data': {'position': [0,0,0,0,0]}
+        'data': {'position': [0,0,0,0,0]},
+        'timestamp': time() - State.session_start_time
     }))
     sleep(1)
     action_queue.append(Action(send_position_update))

@@ -23,6 +23,9 @@ if __name__ == '__main__':
     gui.setupUI()
     gui.show()
 
-    app.exec()
-
-    gui.shutdown()
+    try:
+        app.exec()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        gui.shutdown()
