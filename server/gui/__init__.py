@@ -52,7 +52,7 @@ class ServerGUI(QMainWindow):
         QTimer.singleShot(100, lambda: services.start_services(self.on_services_started))
 
     def setupUI(self):
-        self.setWindowTitle("Swarm Platform - Coordinator")
+        self.setWindowTitle("HANS Platform - Coordinator")
         self.resize(800, 600)
 
         main_panel = QWidget(self)
