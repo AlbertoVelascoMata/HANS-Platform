@@ -34,14 +34,14 @@ function SessionForm() {
   }
   return (
     <form onSubmit={join_session}>
-    <label>
+      <label>
       Session:
       <input name="session-id" type="text" value={sessionId} onChange={(e) => setSessionId(e.target.value)} required />
-    </label>
-    <input type="submit" value="Join session"></input>
+      </label>
+      <input type="submit" value="Join session"></input>
     </form>
   )
-  }
+}
 
 export default function Login() {
   const handleSubmit = (event) => {
@@ -54,47 +54,47 @@ export default function Login() {
   };
 
   return (
-  <Container component="main" maxWidth="xs">
-    <Box
-    sx={{
-      marginTop: 8,
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-    }}
-    >
-    <Typography component="h1" variant="h4">
-      Join session
-    </Typography>
-    <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
-      <TextField
-        margin="normal"
-        required
-        fullWidth
-        id="username"
-        label="User name"
-        name="username"
-        autoComplete="username"
-        autoFocus
-      />
-      <TextField
-        margin="normal"
-        required
-        fullWidth
-        id="session-id"
-        name="session-id"
-        label="Session ID"
-      />
-      <Button
-        type="submit"
-        fullWidth
-        variant="contained"
-        sx={{ mt: 3, mb: 2 }}
+    <Container component="main" maxWidth="xs">
+      <Box
+      sx={{
+        marginTop: 8,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+      }}
       >
-      Join
-      </Button>
-    </Box>
-    </Box>
-  </Container>
+      <Typography component="h1" variant="h4">
+        Join session
+      </Typography>
+      <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
+        <TextField
+          margin="normal"
+          required
+          fullWidth
+          id="username"
+          label="User name"
+          name="username"
+          autoComplete="username"
+          autoFocus
+        />
+        <TextField
+          margin="normal"
+          required
+          fullWidth
+          id="session-id"
+          name="session-id"
+          label="Session ID"
+        />
+        <Button
+          type="submit"
+          fullWidth
+          variant="contained"
+          sx={{ mt: 3, mb: 2 }}
+        >
+        Join
+        </Button>
+      </Box>
+      </Box>
+    </Container>
   );
 }
