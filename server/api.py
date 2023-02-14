@@ -1,7 +1,7 @@
 from threading import Thread
 from pathlib import Path
 
-from flask import Flask, request, send_file, jsonify, send_from_directory
+from flask import Flask, request, redirect, send_file, jsonify, send_from_directory
 from werkzeug.serving import make_server
 from PyQt5.QtCore import QObject, pyqtSignal
 
@@ -32,7 +32,7 @@ class ServerAPI(Thread, QObject):
 
         @self.app.route('/api/session', methods=['GET'])
         def api_get_all_sessions():
-            return jsonify([session.as_dict for session in AppContext.sessions])
+            return jsonify([session.as_dict for session in AppContext.sessions.values()])
 
         @self.app.route('/api/session', methods=['POST'])
         def api_create_session():
@@ -124,7 +124,7 @@ class ServerAPI(Thread, QObject):
             if question is None:
                 return "Question not found", 404
 
-            return send_file(question.img_path)
+            return send_file(question.img_path) if question.img_is_local else redirect(question.img_path)
 
         self.server = make_server(host, port, self.app)
         self.ctx = self.app.app_context()
