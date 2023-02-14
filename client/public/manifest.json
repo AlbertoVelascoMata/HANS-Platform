@@ -1,6 +1,6 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "HANS Platform",
+  "name": "HANS Platform Client",
   "icons": [
     {
       "src": "favicon.ico",

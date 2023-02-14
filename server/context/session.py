@@ -275,7 +275,7 @@ class Session(QObject):
         if self.log_file:
             self.log_file.close()
             self.log_file = None
-    
+
     def participant_update_handler(self, participant_id: int, timestamp: float, data: dict):
         position_data = data.get('position', None)
         if not position_data:
@@ -287,4 +287,4 @@ class Session(QObject):
         # TODO: Maybe the server should not rely the calculation of the central cue
         #       position to the clients, but instead calculate it every X milliseconds
         #       and send it over the topic 'swarm/session/<session-id>/updates' (which
-        #       is currently not used since clients send updates over their own subtopics) 
+        #       is currently not used since clients send updates over their own subtopics)
