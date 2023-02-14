@@ -185,7 +185,7 @@ function BoardView({ answers, userMagnetPosition, peerMagnetPositions, centralCu
   );
 }
 
-function QuestionDetails() {
+function QuestionDetails({ image }) {
   return (
     <Box
       sx={{
@@ -194,11 +194,10 @@ function QuestionDetails() {
       }}
     >
       <img
-        src='https://www.researchgate.net/profile/Tadakazu-Shimoda/publication/44602457/figure/fig1/AS:272139123163203@1441894431683/Tumor-budding-an-isolated-single-cancer-cell-or-a-cluster-composed-of-fewer-than-five_Q320.jpg'
+        src={image}
         alt="question 1"
         width="100%"
-        loading="lazy"
-        />
+      />
       <Typography component="h4" variant="h6" textAlign='center'>
         <b>Question 1</b>
       </Typography>
@@ -211,6 +210,9 @@ function QuestionDetails() {
 
 function Session() {
   const [questionPrompt, setQuestionPrompt] = useState("");
+  const [questionImage, setQuestionImage] = useState(
+    'https://www.researchgate.net/profile/Tadakazu-Shimoda/publication/44602457/figure/fig1/AS:272139123163203@1441894431683/Tumor-budding-an-isolated-single-cancer-cell-or-a-cluster-composed-of-fewer-than-five_Q320.jpg'
+  );
   const [answers, setAnswers] = useState(['Adipose', 'Tumoral stroma', 'Tumoral cells', 'Stroma', 'Cells']);
   const [userMagnetPosition, setUserMagnetPosition] = useState({x: 0, y: 0});
   const [peerMagnetPositions, setPeerMagnetPositions] = useState([
@@ -286,7 +288,9 @@ function Session() {
             p: 1,
           }}
         >
-          <QuestionDetails />
+          <QuestionDetails
+            image={questionImage}
+          />
         </Paper>
         <Paper
           elevation={2}
