@@ -6,94 +6,121 @@ import TextField from '@mui/material/TextField';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Container from '@mui/material/Container';
+import Collapse from '@mui/material/Collapse';
+import Alert from '@mui/material/Alert';
+import AlertTitle from '@mui/material/AlertTitle';
+import IconButton from '@mui/material/IconButton';
+import CloseIcon from '@mui/icons-material/Close';
 
-function SessionForm() {
-  const [sessionId, setSessionId] = useState('');
-
+export default function SessionLogin() {
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  async function join_session(e) {
-    e.preventDefault();
-    await fetch(`/api/session/${sessionId}`,
-    { method: 'GET'}
-    ).then(res => {
-    if(res.status === 200) {
-      res.json().then(data => {
-        //$('#session-details').html(JSON.stringify(data));
-        //$('#question-id').attr('value', data.question);
-        navigate('/session');
-      });
-    } else {
-      res.text().then(data => {
-        //$('#session-details').html(`ERROR (${res.status}): ${data}`);
-      });
-    }
-    }).catch(res => {
-
-    });
-  }
-  return (
-    <form onSubmit={join_session}>
-      <label>
-      Session:
-      <input name="session-id" type="text" value={sessionId} onChange={(e) => setSessionId(e.target.value)} required />
-      </label>
-      <input type="submit" value="Join session"></input>
-    </form>
-  )
-}
-
-export default function Login() {
-  const handleSubmit = (event) => {
+  const joinSession = async (event) => {
     event.preventDefault();
-    const data = new FormData(event.currentTarget);
+    const formData = new FormData(event.currentTarget);
     console.log({
-    email: data.get('email'),
-    password: data.get('password'),
+      username: formData.get('username'),
+      session_id: formData.get('session-id'),
+    });
+
+    const sessionId = formData.get('session-id');
+    if(!sessionId.trim().length || isNaN(sessionId)) {
+      setError({title: "Invalid session ID", msg: "Only integer numbers are valid"});
+      return;
+    }
+
+    await fetch(
+      `/api/session/${sessionId}/participants`,
+      {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({user: formData.get('username')})
+      }
+    ).then(res => {
+      if(res.status === 200) {
+        res.json().then(data => {
+          sessionStorage.setItem('session_id', sessionId);
+          sessionStorage.setItem('participant_id', data.id);
+          sessionStorage.setItem('username', data.username);
+          navigate('/session');
+        });
+      } else {
+        res.text().then(msg =>
+          setError({title: "Unable to join session", msg: msg})
+        );
+      }
+    }).catch(error => {
+      setError({title: "Unable to send join request", msg: error});
     });
   };
 
   return (
     <Container component="main" maxWidth="xs">
       <Box
-      sx={{
-        marginTop: 8,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-      }}
+        sx={{
+          marginTop: 8,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}
       >
-      <Typography component="h1" variant="h4">
-        Join session
-      </Typography>
-      <Box component="form" onSubmit={handleSubmit} noValidate sx={{ mt: 1 }}>
-        <TextField
-          margin="normal"
-          required
-          fullWidth
-          id="username"
-          label="User name"
-          name="username"
-          autoComplete="username"
-          autoFocus
-        />
-        <TextField
-          margin="normal"
-          required
-          fullWidth
-          id="session-id"
-          name="session-id"
-          label="Session ID"
-        />
-        <Button
-          type="submit"
-          fullWidth
-          variant="contained"
-          sx={{ mt: 3, mb: 2 }}
-        >
-        Join
-        </Button>
-      </Box>
+        <Typography component="h1" variant="h4">
+          Join session
+        </Typography>
+        <Box component="form" onSubmit={joinSession} noValidate sx={{ mt: 1 }}>
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="username"
+            label="User name"
+            name="username"
+            autoComplete="username"
+            defaultValue={sessionStorage.getItem('username') ? sessionStorage.getItem('username') : ""}
+            autoFocus
+          />
+          <TextField
+            margin="normal"
+            required
+            fullWidth
+            id="session-id"
+            name="session-id"
+            label="Session ID"
+            inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}
+          />
+          <Button
+            type="submit"
+            fullWidth
+            variant="contained"
+            sx={{ mt: 3, mb: 2 }}
+          >
+            Join
+          </Button>
+          <Collapse in={error !== null}>
+            <Alert
+              severity="error"
+              action={
+                <IconButton
+                  aria-label="close"
+                  color="inherit"
+                  size="small"
+                  onClick={() => {
+                    setError(null);
+                  }}
+                >
+                  <CloseIcon fontSize="inherit" />
+                </IconButton>
+              }
+            >
+              <AlertTitle><b>{error ?  error.title : "Error"}</b></AlertTitle>
+              {error && error.msg}
+            </Alert>
+          </Collapse>
+        </Box>
       </Box>
     </Container>
   );
