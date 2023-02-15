@@ -1,3 +1,4 @@
+import os
 from threading import Thread
 from pathlib import Path
 
@@ -16,11 +17,7 @@ class ServerAPI(Thread, QObject):
     def __init__(self, host='0.0.0.0', port=5000):
         Thread.__init__(self)
         QObject.__init__(self)
-        self.app = Flask(__name__)
-
-        @self.app.route('/')
-        def index_handle():
-            return send_from_directory('../client', 'index.html')
+        self.app = Flask(__name__, static_folder='../client/build')
 
         @self.app.route('/api/session/<int:session_id>', methods=['GET'])
         def api_session_handle_get(session_id: int):
@@ -125,8 +122,17 @@ class ServerAPI(Thread, QObject):
                 return "Question not found", 404
 
             return send_file(question.img_path) if question.img_is_local else redirect(question.img_path)
+        
+        # Serve client app
+        @self.app.route('/', defaults={'path': ''})
+        @self.app.route('/<path:path>')
+        def client_handler(path):
+            if path == '' or not (Path(self.app.static_folder) / path).is_file():
+                return send_from_directory(self.app.static_folder, 'index.html')
 
-        self.server = make_server(host, port, self.app)
+            return send_from_directory(self.app.static_folder, path)
+
+        self.server = make_server(host, port, self.app, threaded=True)
         self.ctx = self.app.app_context()
         self.ctx.push()
 
