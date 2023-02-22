@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import json
+from random import random
 from typing import Callable, List
 from time import sleep, time
 from enum import Enum
@@ -30,6 +31,7 @@ class State:
     session_start_time = None
     participant_id = None
     question = None
+    position = [0.0]
 
 def request_join_session(username, session_id) -> bool:
     print(f"> Trying to join session (user={username}, id={session_id})")
@@ -121,6 +123,7 @@ def get_question_info(question_id) -> bool:
         return False
 
     State.question = res.json()
+    State.position = [random() for _ in range(len(State.question['answers']))]
     action_queue.append(Action(notify_client_ready))
     return True
 
@@ -134,12 +137,13 @@ def send_position_update() -> bool:
         print(f"> Stopping continous position updates")
         return State.continue_after_stop
 
+    State.position = [min((1, max((0, v + (random() - 0.5) * 0.02)))) for v in State.position]
     print(f"> Sending POSITION UPDATE (session={State.session_id}, participant={State.participant_id}, question={State.question['id'] if State.question else None})")
     mqtt_client.publish(f'swarm/session/{State.session_id}/updates/{State.participant_id}', json.dumps({
-        'data': {'position': [0,0,0,0,0]},
+        'data': {'position': State.position},
         'timestamp': time() - State.session_start_time
     }))
-    sleep(1)
+    sleep(0.1)
     action_queue.append(Action(send_position_update))
     return True
 
@@ -155,7 +159,7 @@ if __name__ == '__main__':
     mqtt_client = mqtt.Client(transport='websockets')
     mqtt_client.on_message = on_message
     mqtt_client.ws_set_options(path='/')
-    mqtt_client.connect('localhost', 1883, 60)
+    mqtt_client.connect('localhost', 9001, 60)
     mqtt_client.loop_start()
 
     action_queue.append(Action(request_join_session, (args.username, args.session_id)))
