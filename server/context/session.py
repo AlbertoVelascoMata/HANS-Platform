@@ -182,6 +182,10 @@ class Session(QObject):
 
     @active_question.setter
     def active_question(self, question: Union[int, Question]):
+        for participant in self.participants.values():
+            participant.status = Participant.Status.JOINED
+        self.on_participants_ready_changed.emit(0, len(self.participants))
+
         if question is None or isinstance(question, Question):
             self._question = question
         else:
