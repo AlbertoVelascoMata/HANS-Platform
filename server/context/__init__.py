@@ -11,7 +11,7 @@ SESSION_LOG_FOLDER = Path('session_log')
 
 class AppContext:
     args = Namespace(
-        mqtt_port=1883,
+        mqtt_port=9001,
         api_port=5000,
     )
 

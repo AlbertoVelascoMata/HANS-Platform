@@ -19,6 +19,7 @@ class ServerGUI(QMainWindow):
     def on_services_started(self, service):
         if 'broker' in service.__class__.__name__.lower():
             self.mqtt_status_lbl.setText('🟢 MQTT Broker')
+            AppContext.mqtt_broker.on_stop = lambda: self.mqtt_status_lbl.setText('🔴 MQTT Broker')
         elif 'api' in service.__class__.__name__.lower():
             self.api_status_lbl.setText('🟢 HTTP API')
             AppContext.api_service.on_session_created = self.on_session_created

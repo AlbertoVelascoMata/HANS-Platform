@@ -122,7 +122,7 @@ class ServerAPI(Thread, QObject):
                 return "Question not found", 404
 
             return send_file(question.img_path) if question.img_is_local else redirect(question.img_path)
-        
+
         # Serve client app
         @self.app.route('/', defaults={'path': ''})
         @self.app.route('/<path:path>')
