@@ -5,6 +5,7 @@ import Paper from '@mui/material/Paper';
 import BoardView from './BoardView';
 import { Typography } from "@mui/material";
 
+
 export default function DebugBoardView() {
   const answers = Array.from({length: 5}, (_, i) => `Answer ${i}`);
   const [positionText, setPositionText] = useState('[0, 0] => []');

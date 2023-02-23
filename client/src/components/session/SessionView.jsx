@@ -1,107 +1,20 @@
 import { React, useRef, useState, useEffect } from "react";
-import { Navigate, useNavigate } from "react-router-dom";
 
 import Backdrop from '@mui/material/Backdrop';
-import CircularProgress from '@mui/material/CircularProgress';
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import Button from '@mui/material/Button';
-import LogoutIcon from '@mui/icons-material/Logout';
 
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 
+import SessionStatusView from './StatusView';
 import QuestionDetails from './QuestionDetails';
-import BoardView from './BoardView';
+import BoardView from '../BoardView';
 
-import mqtt from 'precompiled-mqtt';
+import { Session, SessionStatus } from '../../context/Session';
+import { QuestionStatus } from '../../context/Question';
 
-class Session {
-  constructor(sessionId, participantId, controlCallback, updateCallback) {
-    console.log("SESSION CONSTRUCTOR CALLED");
-    this.sessionId = sessionId;
-    this.participantId = participantId;
 
-    this.client = mqtt.connect(
-      `ws://${window.location.hostname}:9001/`,
-      {
-        clean: true,
-        connectTimeout: 4000,
-      }
-    );
-    this.client.on('connect', () => {
-      console.log('[MQTT] Client connected to broker');
-      this.client.subscribe([
-        `swarm/session/${sessionId}/control`,
-        `swarm/session/${sessionId}/updates/+`,
-      ], (err) => {
-          if(!err) console.log("[MQTT] Subscribed to /swarm/session/#");
-      });
-    });
-    this.client.on('message', (topic, message) => {
-      const topic_data = topic.split('/', 5);
-      if(
-        (topic_data.length < 4)
-        || (topic_data[0] !== 'swarm')
-        || (topic_data[1] !== 'session')
-        || !topic_data[2].length || isNaN(topic_data[2])
-      ) {
-        console.log(`[MQTT] Invalid topic '${topic}'`);
-        return;
-      }
-
-      const sessionId = topic_data[2];
-      if(sessionId !== this.sessionId) {
-        console.log(`[MQTT] Unknown session ID '${sessionId}'`);
-        return;
-      }
-
-      if(topic_data[3] === 'control') {
-        controlCallback(JSON.parse(message));
-      }
-      else if(topic_data[3] === 'updates') {
-        if(topic_data.length !== 5) {
-          console.log('[MQTT] An update was received in a non-participant-specific topic');
-          return;
-        }
-        const participantId = topic_data[4];
-        if(participantId !== this.participantId) {  // Discard self updates
-          updateCallback(participantId, JSON.parse(message));
-        }
-      }
-    });
-  }
-  publishControl(controlMessage) {
-    this.client.publish(
-      `swarm/session/${this.sessionId}/control/${this.participantId}`,
-      JSON.stringify(controlMessage)
-    );
-  }
-  publishUpdate(updateMessage) {
-    this.client.publish(
-      `swarm/session/${this.sessionId}/updates/${this.participantId}`,
-      JSON.stringify(updateMessage)
-    );
-  }
-  close() {
-    this.client.end();
-  }
-}
-
-const SessionStatus = Object.freeze({
-  Joining: Symbol("joining"), // Getting session info and subscribing to MQTT topics
-  Waiting: Symbol("waiting"), // Waiting for the question to be defined and loaded
-  Active: Symbol("active"),   // Answering the question, all users are interacting
-});
-
-const QuestionStatus = Object.freeze({
-  Undefined: Symbol("undefined"), // No question defined
-  Loading: Symbol("loading"),     // Question ID defined, but details were not retrieved yet
-  Loaded: Symbol("loaded"),       // Question fully loaded, all details are available
-});
-
-export default function SessionView() {
-  const navigate = useNavigate();
+export default function SessionView({ sessionId, participantId, onLeave=()=>{} }) {
   const sessionRef = useRef(null);
   const [sessionStatus, setSessionStatus] = useState(SessionStatus.Joining);
   const [question, setQuestion] = useState({status: QuestionStatus.Undefined});
@@ -109,13 +22,7 @@ export default function SessionView() {
   const [peerMagnetPositions, setPeerMagnetPositions] = useState({});
   const [centralCuePosition, setCentralCuePosition] = useState([]);
 
-  const sessionId = sessionStorage.getItem('session_id');
-  const participantId = sessionStorage.getItem('participant_id');
-  const username = sessionStorage.getItem('username');
-
   useEffect(() => {
-    if(!sessionId || !participantId || !username) return;
-
     fetch(
       `/api/session/${sessionId}`,
       {
@@ -172,7 +79,7 @@ export default function SessionView() {
           }
         });
       });
-  }, [sessionId, participantId, username]);
+  }, [sessionId, participantId]);
 
   useEffect(() => {
     let ignore = false;
@@ -247,90 +154,27 @@ export default function SessionView() {
     sessionRef.current.publishUpdate({data: {position: position.norm}});
   };
 
-  const handleLogout = () => {
+  const onLeaveSessionClick = () => {
     // TODO: User should double-check the intention to logout (showing a modal when the leave/logout button is pressed)
 
     // TODO: The server should be notified about the user leaving the session:
     //sessionRef.current.leave()
 
-    sessionStorage.removeItem('session_id');
-    sessionStorage.removeItem('participant_id');
-    sessionStorage.removeItem('username');
-    navigate('/');
+    onLeave();
   }
 
-  return (!sessionId || !participantId || !username) ? (
-    // User not logged in
-    <Navigate to='/' />
-  ) : (
+  return (
     <>
       <Backdrop
         sx={{ color: '#fff', zIndex: (theme) => theme.zIndex.drawer + 1 }}
         open={sessionStatus !== SessionStatus.Active}
       >
-        <Paper
-          sx={{
-            p: 4,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            gap: 3,
-          }}
-        >
-          <Typography variant="h5" textAlign='center'>
-            <b>Session {sessionId}</b>
-          </Typography>
-          {sessionStatus === SessionStatus.Joining ? (
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: 3,
-              }}
-            >
-              <CircularProgress color="inherit" />
-              <Typography component="span" textAlign='center'>
-                Joining
-              </Typography>
-            </Box>
-          ) : (
-            <>
-              <Box
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  flexWrap: 'wrap',
-                  gap: 1,
-                }}
-              >
-                <CheckCircleOutlineRoundedIcon fontSize="large" color="success"/>
-                <Typography component="span" textAlign='center'>
-                  Joined!
-                </Typography>
-              </Box>
-              <Typography component="span" textAlign='center' >
-                {question.status === QuestionStatus.Loaded ? (
-                  "Question ready! Session will start soon"
-                ) : (
-                  question.status === QuestionStatus.Loading ? (
-                    "Retrieving question details"
-                  ) : (
-                    "Waiting for a question..."
-                  )
-                )}
-              </Typography>
-            </>
-          )}
-          <Button
-            color="error"
-            variant="outlined"
-            startIcon={<LogoutIcon/>}
-            onClick={handleLogout}
-          >
-            Leave session
-          </Button>
-        </Paper>
+        <SessionStatusView
+          sessionId={sessionId}
+          sessionStatus={sessionStatus}
+          questionStatus={question.status}
+          onLeaveClick={onLeaveSessionClick}
+        />
       </Backdrop>
       <Box
         component="main"

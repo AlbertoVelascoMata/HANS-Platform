@@ -1,4 +1,6 @@
 import { React, useState } from 'react';
+import { useNavigate } from "react-router-dom";
+
 import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Toolbar from '@mui/material/Toolbar';
@@ -11,9 +13,9 @@ import AccountCircle from '@mui/icons-material/AccountCircle';
 import MenuItem from '@mui/material/MenuItem';
 import Menu from '@mui/material/Menu';
 
-export default function Header() {
+export default function Header({ username=null, onLeaveClick=()=>{} }) {
   const [anchorEl, setAnchorEl] = useState(null);
-  const username = sessionStorage.getItem('username');
+  const navigate = useNavigate();
 
   const handleMenu = (event) => {
     setAnchorEl(event.currentTarget);
@@ -23,10 +25,8 @@ export default function Header() {
     setAnchorEl(null);
   };
 
-  const handleLogout = () => {
-    sessionStorage.removeItem('session_id');
-    sessionStorage.removeItem('participant_id');
-    sessionStorage.removeItem('username');
+  const handleLeaveClick = () => {
+    onLeaveClick();
     handleClose();
   }
 
@@ -67,7 +67,7 @@ export default function Header() {
                 </Typography>
                 <AccountCircle fontSize='large' />
               </Button>
-              
+
               <Menu
                 id="menu-appbar"
                 anchorEl={anchorEl}
@@ -83,11 +83,16 @@ export default function Header() {
                 open={Boolean(anchorEl)}
                 onClose={handleClose}
               >
-                <MenuItem onClick={handleLogout}>Logout</MenuItem>
+                <MenuItem onClick={handleLeaveClick}>Leave session</MenuItem>
               </Menu>
             </div>
           ) : (
-            <Button color="inherit">Login</Button>
+            <Button
+              color="inherit"
+              onClick={() => navigate('/')}
+            >
+              Join a session
+            </Button>
           )}
         </Toolbar>
       </AppBar>

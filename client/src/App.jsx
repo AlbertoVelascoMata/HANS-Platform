@@ -1,23 +1,60 @@
 import { React } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 
 import Header from './components/Header';
 import SessionLogin from './components/SessionLogin';
-import SessionView from './components/Session';
+import SessionView from './components/session/SessionView';
 import DebugBoardView from "./components/DebugBoardView";
 
 function App() {
+  const navigate = useNavigate();
+
+  const sessionId = sessionStorage.getItem('session_id');
+  const participantId = sessionStorage.getItem('participant_id');
+  const username = sessionStorage.getItem('username');
+
+  const joinSession = (username, participantId, sessionId) => {
+    sessionStorage.setItem('session_id', sessionId);
+    sessionStorage.setItem('participant_id', participantId);
+    sessionStorage.setItem('username', username);
+    navigate('/session');
+  }
+
+  const leaveSession = () => {
+    sessionStorage.removeItem('session_id');
+    sessionStorage.removeItem('participant_id');
+    sessionStorage.removeItem('username');
+    navigate('/');
+  };
+
   return (
-    <Router basename={process.env.PUBLIC_URL}>
-      <Header />
-      <div>
-        <Routes>
-          <Route path="/" element={<SessionLogin/>} />
-          <Route path="/session" element={<SessionView/>} />
-          <Route path="/debug" element={<DebugBoardView/>} />
-        </Routes>
-      </div>
-    </Router>
+    <>
+      <Header
+        username={username}
+        onLeaveClick={leaveSession}
+      />
+      <Routes>
+        <Route exact path="/" element={
+          <SessionLogin
+            username={username}
+            onJoinSession={joinSession}
+          />
+        }/>
+        <Route path="/session" element={
+          (!sessionId || !participantId) ? (
+            // User not logged in
+            <Navigate to='/' />
+          ) : (
+            <SessionView
+              sessionId={sessionId}
+              participantId={participantId}
+              onLeave={leaveSession}
+            />
+          )
+        }/>
+        <Route path="/debug" element={<DebugBoardView/>} />
+      </Routes>
+    </>
   )
 }
 

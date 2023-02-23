@@ -1,5 +1,4 @@
 import { React, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
@@ -12,17 +11,13 @@ import AlertTitle from '@mui/material/AlertTitle';
 import IconButton from '@mui/material/IconButton';
 import CloseIcon from '@mui/icons-material/Close';
 
-export default function SessionLogin() {
+
+export default function SessionLogin({ username = null, onJoinSession=()=>{} }) {
   const [error, setError] = useState(null);
-  const navigate = useNavigate();
 
   const joinSession = async (event) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    console.log({
-      username: formData.get('username'),
-      session_id: formData.get('session-id'),
-    });
 
     const sessionId = formData.get('session-id');
     if(!sessionId.trim().length || isNaN(sessionId)) {
@@ -43,10 +38,7 @@ export default function SessionLogin() {
     ).then(res => {
       if(res.status === 200) {
         res.json().then(data => {
-          sessionStorage.setItem('session_id', sessionId);
-          sessionStorage.setItem('participant_id', data.id);
-          sessionStorage.setItem('username', data.username);
-          navigate('/session');
+          onJoinSession(data.username, data.id, sessionId);
         });
       } else {
         res.text().then(msg =>
@@ -80,7 +72,7 @@ export default function SessionLogin() {
             label="User name"
             name="username"
             autoComplete="username"
-            defaultValue={sessionStorage.getItem('username') ? sessionStorage.getItem('username') : ""}
+            defaultValue={username}
             autoFocus
           />
           <TextField
