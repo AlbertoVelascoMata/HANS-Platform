@@ -5,7 +5,7 @@ from typing import Callable, Dict, Union
 
 from mqtt import MQTTClient
 from enum import Enum
-from PyQt5.QtCore import QObject, pyqtSignal
+from PyQt5.QtCore import pyqtSignal, QObject, QElapsedTimer
 
 from .question import Question
 from .participant import Participant
@@ -157,6 +157,7 @@ class Session(QObject):
         self.duration = 30
         self.participants: Dict[Participant] = {}
         self.log_file: TextIOBase = None
+        self.timer = QElapsedTimer()
 
         self.communicator = SessionCommunicator(self.id, port=ctx.AppContext.mqtt_broker.port)
         self.communicator.on_status_changed = lambda status: self.on_connection_status_changed.emit(self, status)
@@ -239,6 +240,7 @@ class Session(QObject):
 
         # TODO: This should be done asynchronously
         session_time = datetime.now()
+        self.timer.restart()
         log_folder = ctx.SESSION_LOG_FOLDER / session_time.strftime('%Y-%m-%d-%H-%M-%S')
         log_folder.mkdir(parents=True, exist_ok=True)
         with open(log_folder / 'session.json', 'w') as f:

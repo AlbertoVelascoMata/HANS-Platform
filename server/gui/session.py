@@ -1,8 +1,8 @@
-from PyQt5.QtCore import pyqtSlot
+from PyQt5.QtCore import pyqtSlot, QTime, QTimer
 from PyQt5.QtWidgets import QListWidgetItem
 from PyQt5.QtWidgets import (
     QVBoxLayout, QGridLayout,
-    QWidget, QGroupBox,
+    QWidget, QGroupBox, QStackedWidget,
     QListWidget, QListWidgetItem,
     QLabel, QLineEdit,
     QComboBox, QPushButton
@@ -25,6 +25,8 @@ class SessionPanelWidget(QWidget):
     ):
         super().__init__(parent)
         self.session = None
+        self.duration_timer = QTimer(self)
+        self.duration_timer.timeout.connect(self.on_duration_timer_timeout)
 
         self.setupUI()
 
@@ -53,6 +55,17 @@ class SessionPanelWidget(QWidget):
         self.set_status(status)
         self.duration_txt.setEnabled(status == Session.Status.WAITING)
         self.question_cbbox.setEnabled(session.status == Session.Status.WAITING)
+
+    @pyqtSlot()
+    def on_duration_timer_timeout(self):
+        if not self.session: return
+
+        remaining_ms = max(0, (self.session.duration * 1000) - self.session.timer.elapsed())
+        self.duration_timer_lbl.setText(QTime.fromMSecsSinceStartOfDay(remaining_ms).toString("mm:ss"))
+
+        if remaining_ms == 0:
+            self.start_btn.setEnabled(False)
+            self.session.stop()
 
     ### SET QUESTION
 
@@ -108,11 +121,15 @@ class SessionPanelWidget(QWidget):
     def on_start(self, session, started):
         self.start_btn.setText('Stop')
         self.start_btn.setEnabled(True)
+        self.duration_stack.setCurrentIndex(1)
+        self.duration_timer.start(10)
 
     @pyqtSlot(Session, bool)
     def on_stop(self, session, stopped):
         self.start_btn.setText('Start')
         self.start_btn.setEnabled(True)
+        self.duration_stack.setCurrentIndex(0)
+        self.duration_timer.stop()
 
 
     ### UI SETUP
@@ -196,8 +213,15 @@ class SessionPanelWidget(QWidget):
         details_panel_layout.addWidget(duration_lbl, details_row, 0)
         duration_lbl.setText('Duration:')
 
-        self.duration_txt = QLineEdit(details_panel)
-        details_panel_layout.addWidget(self.duration_txt, details_row, 1)
+        self.duration_stack = QStackedWidget(details_panel)
+        details_panel_layout.addWidget(self.duration_stack, details_row, 1)
+
+        self.duration_txt = QLineEdit(self.duration_stack)
+        self.duration_stack.addWidget(self.duration_txt)
+        self.duration_stack.setCurrentIndex(0)
+
+        self.duration_timer_lbl = QLabel(self.duration_stack)
+        self.duration_stack.addWidget(self.duration_timer_lbl)
 
         ## Session status
         details_row += 1
