@@ -1,12 +1,12 @@
-import os
-from threading import Thread
 from pathlib import Path
+from threading import Thread
 
-from flask import Flask, request, redirect, send_file, jsonify, send_from_directory
-from werkzeug.serving import make_server
+from flask import (Flask, jsonify, redirect, request, send_file,
+                   send_from_directory)
 from PyQt5.QtCore import QObject, pyqtSignal
+from werkzeug.serving import make_server
 
-from context import AppContext, Session, Participant
+from src.context import AppContext, Participant, Session
 
 QUESTIONS_FOLDER = Path('questions')
 

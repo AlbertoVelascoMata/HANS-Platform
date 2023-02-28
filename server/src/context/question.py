@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+
 class Question:
     last_id = 0
 

@@ -1,16 +1,16 @@
 import json
 from datetime import datetime
+from enum import Enum
 from io import TextIOBase
 from typing import Callable, Dict, Union
 
-from mqtt import MQTTClient
-from enum import Enum
-from PyQt5.QtCore import pyqtSignal, QObject, QElapsedTimer
+from PyQt5.QtCore import QElapsedTimer, QObject, pyqtSignal
 
-from .question import Question
+import src.context as ctx
+from .mqtt_utils import MQTTClient
 from .participant import Participant
+from .question import Question
 
-import context as ctx
 
 class SessionCommunicator(MQTTClient):
     class Status(Enum):

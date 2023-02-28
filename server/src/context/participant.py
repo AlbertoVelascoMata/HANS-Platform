@@ -1,5 +1,7 @@
 from enum import Enum
+
 from PyQt5.QtCore import QObject, pyqtSignal
+
 
 class Participant(QObject):
     last_id = 0

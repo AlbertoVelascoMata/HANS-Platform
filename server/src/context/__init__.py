@@ -1,10 +1,10 @@
 from argparse import Namespace
-from typing import Dict
 from pathlib import Path
+from typing import Dict
 
-from context.question import Question
-from context.session import Session
-from context.participant import Participant
+from .participant import Participant
+from .question import Question
+from .session import Session
 
 QUESTIONS_FOLDER = Path('questions')
 SESSION_LOG_FOLDER = Path('session_log')

@@ -3,8 +3,8 @@ from argparse import ArgumentParser
 
 from PyQt5.QtWidgets import QApplication
 
-from context import AppContext
-from gui import ServerGUI
+from .context import AppContext
+from .gui import ServerGUI
 
 if __name__ == '__main__':
     parser = ArgumentParser()

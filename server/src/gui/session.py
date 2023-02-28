@@ -1,16 +1,13 @@
-from PyQt5.QtCore import pyqtSlot, QTime, QTimer
-from PyQt5.QtWidgets import QListWidgetItem
-from PyQt5.QtWidgets import (
-    QVBoxLayout, QGridLayout,
-    QWidget, QGroupBox, QStackedWidget,
-    QListWidget, QListWidgetItem,
-    QLabel, QLineEdit,
-    QComboBox, QPushButton
-)
+from PyQt5.QtCore import QTime, QTimer, pyqtSlot
+from PyQt5.QtWidgets import (QComboBox, QGridLayout, QGroupBox, QLabel,
+                             QLineEdit, QListWidget, QListWidgetItem,
+                             QPushButton, QStackedWidget, QVBoxLayout, QWidget)
 
-from context import AppContext, Session, Participant
-from context.session import SessionCommunicator
-from gui.participant import ParticipantWidget
+from src.context import AppContext, Participant, Session
+from src.context.session import SessionCommunicator
+
+from .participant import ParticipantWidget
+
 
 class SessionListItem(QListWidgetItem):
     def __init__(self, session: Session):

@@ -1,7 +1,8 @@
 from PyQt5.QtCore import pyqtSlot
-from PyQt5.QtWidgets import QHBoxLayout, QWidget, QLabel
+from PyQt5.QtWidgets import QHBoxLayout, QLabel, QWidget
 
-from context import Participant
+from src.context import Participant
+
 
 class ParticipantWidget(QWidget):
     def __init__(self,

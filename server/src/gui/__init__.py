@@ -1,14 +1,11 @@
 from PyQt5.QtCore import QTimer, pyqtSlot
-from PyQt5.QtWidgets import (
-    QMainWindow, QStatusBar,
-    QVBoxLayout, QHBoxLayout,
-    QWidget, QListWidget,
-    QLabel, QPushButton
-)
+from PyQt5.QtWidgets import (QHBoxLayout, QLabel, QListWidget, QMainWindow,
+                             QPushButton, QStatusBar, QVBoxLayout, QWidget)
 
-from gui.session import SessionListItem, SessionPanelWidget
-from context import AppContext, Session
-import services
+from src.context import AppContext, Session
+from src.services import start_services, stop_services
+
+from .session import SessionListItem, SessionPanelWidget
 
 
 class ServerGUI(QMainWindow):
@@ -50,7 +47,7 @@ class ServerGUI(QMainWindow):
 
     def showEvent(self, event):
         super().showEvent(event)
-        QTimer.singleShot(100, lambda: services.start_services(self.on_services_started))
+        QTimer.singleShot(100, lambda: start_services(self.on_services_started))
 
     def setupUI(self):
         self.setWindowTitle("HANS Platform - Coordinator")
@@ -98,4 +95,4 @@ class ServerGUI(QMainWindow):
         self.setStatusBar(self.statusbar)
 
     def shutdown(self):
-        services.stop_services()
+        stop_services()
