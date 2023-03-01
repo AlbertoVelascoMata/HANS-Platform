@@ -34,7 +34,7 @@ class Question:
             img_path = data['image']
         else:
             img_path = next((
-                    f
+                    f.absolute()
                     for f in question_folder.glob('img.*')
                     if f.suffix in ['.png', '.tif']
                 ), None)

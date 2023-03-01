@@ -17,7 +17,7 @@ class ServerAPI(Thread, QObject):
     def __init__(self, host='0.0.0.0', port=5000):
         Thread.__init__(self)
         QObject.__init__(self)
-        self.app = Flask(__name__, static_folder='../client/build')
+        self.app = Flask(__name__, static_folder='../../../client/build')
 
         @self.app.route('/api/session/<int:session_id>', methods=['GET'])
         def api_session_handle_get(session_id: int):
